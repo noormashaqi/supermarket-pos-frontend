@@ -4,7 +4,7 @@ import { AddStockModal } from '../components/products/AddStockModal';
 import { useModal } from '../hooks';
 import { productsService } from '../api/services/productsService';
 import type { Product, StockMovement } from '../types';
-import { formatDate } from '../utils';
+import { formatDate, getSession } from '../utils';
 
 export const StockHistoryPage = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -35,6 +35,9 @@ export const StockHistoryPage = () => {
   const handleAddStock = async (quantityAdded: number, reason: string) => {
     if (!addStockModal.data) return;
     setIsLoading(true);
+    const session = getSession();
+    const currentEmployeeName = session ? (session.fullName || session.username) : 'Inventory Manager';
+
     try {
       await productsService.addStock(
         {
@@ -42,7 +45,7 @@ export const StockHistoryPage = () => {
           quantityAdded,
           reason,
         },
-        'Ahmad (Admin)'
+        currentEmployeeName
       );
       await loadData();
       addStockModal.close();

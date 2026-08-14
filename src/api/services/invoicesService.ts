@@ -2,9 +2,17 @@ import { apiClient } from '../client';
 import type { Invoice, CreateInvoiceInput } from '../../types';
 
 export const invoicesService = {
-  async getInvoices(): Promise<Invoice[]> {
+  async getInvoices(filters?: { date?: string; employeeId?: string; productId?: string }): Promise<Invoice[]> {
     try {
-      const data = await apiClient<any[]>('/api/Invoices');
+      const params = new URLSearchParams();
+      if (filters?.date) params.append('date', filters.date);
+      if (filters?.employeeId) params.append('employeeId', filters.employeeId);
+      if (filters?.productId) params.append('productId', filters.productId);
+      
+      const queryStr = params.toString();
+      const endpoint = `/api/Invoices${queryStr ? `?${queryStr}` : ''}`;
+      
+      const data = await apiClient<any[]>(endpoint);
       if (Array.isArray(data)) {
         return data.map((inv) => ({
           id: String(inv.id),

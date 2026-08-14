@@ -13,7 +13,7 @@ import type { Product, Category, Invoice } from '../../types';
 import { productsService } from '../../api/services/productsService';
 import { categoriesService } from '../../api/services/categoriesService';
 import { invoicesService } from '../../api/services/invoicesService';
-import { formatCurrency } from '../../utils';
+import { formatCurrency, getSession } from '../../utils';
 import { PrintInvoiceModal } from '../invoices/PrintInvoiceModal';
 import { ToastContainer, type ToastMessage } from '../common';
 import { useModal } from '../../hooks';
@@ -128,6 +128,9 @@ export const PosTerminal = () => {
 
     setIsSubmitting(true);
     try {
+      const session = getSession();
+      const currentEmployeeName = session ? (session.fullName || session.username) : 'Cashier';
+
       const invoiceData = await invoicesService.createInvoice(
         {
           customerName,
@@ -137,7 +140,7 @@ export const PosTerminal = () => {
             quantity: item.quantity,
           })),
         },
-        'Ahmad (Cashier)'
+        currentEmployeeName
       );
 
       setCart([]);
