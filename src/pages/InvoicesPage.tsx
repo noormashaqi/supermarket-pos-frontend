@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Printer, Search, FileText, Undo2, Calendar, User, Package, RefreshCw } from 'lucide-react';
+import { Printer, Search, FileText, Undo2, Calendar, User, Package } from 'lucide-react';
 import { Badge, Table, type Column } from '../components/common';
 import { invoicesService } from '../api/services/invoicesService';
 import { productsService } from '../api/services/productsService';
@@ -194,24 +194,15 @@ export const InvoicesPage = () => {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        {selectedInvoice && (
           <button
-            onClick={loadInvoices}
-            className="flex items-center justify-center p-2 text-slate-500 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
-            title="Refresh Invoices List"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <Printer className="w-4 h-4" />
+            <span>Print Selected #{selectedInvoice.invoiceNumber}</span>
           </button>
-          {selectedInvoice && (
-            <button
-              onClick={() => setIsPrintModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print Selected #{selectedInvoice.invoiceNumber}</span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Advanced Filter Box */}
