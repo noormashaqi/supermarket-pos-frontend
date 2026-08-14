@@ -51,13 +51,10 @@ export const ProductsPage = () => {
   const handleProductSubmit = async (data: CreateProductInput | UpdateProductInput) => {
     setIsLoading(true);
     try {
-      const categoryObj = categories.find((c) => c.id === data.categoryId);
-      const categoryName = categoryObj?.name || 'General';
-
       if (productFormModal.data) {
-        await productsService.updateProduct(productFormModal.data.id, data as UpdateProductInput, categoryName);
+        await productsService.updateProduct(productFormModal.data.id, data as UpdateProductInput, 'Admin');
       } else {
-        await productsService.createProduct(data as CreateProductInput, categoryName);
+        await productsService.createProduct(data as CreateProductInput, 'Admin');
       }
       await loadData();
       productFormModal.close();

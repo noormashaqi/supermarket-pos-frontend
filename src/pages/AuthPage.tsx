@@ -1,22 +1,40 @@
 import { useState, type FormEvent } from 'react';
-import { ShoppingCart, User, Lock, ArrowRight } from 'lucide-react';
+import { ShoppingCart, User, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../api/client';
 
 export const AuthPage = () => {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e: FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (!username) return;
 
     setIsLoading(true);
-    setTimeout(() => {
+    setErrorMessage('');
+
+    try {
+      const response = await apiClient<any>('/api/Auth/sign-in', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (response && response.accessToken) {
+        localStorage.setItem('supermarket-pos-session', JSON.stringify(response));
+        localStorage.setItem('token', response.accessToken);
+        navigate('/pos');
+      } else {
+        throw new Error('Invalid authentication response from server.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Login failed. Please check your username and password.');
+    } finally {
       setIsLoading(false);
-      navigate('/pos');
-    }, 400);
+    }
   };
 
   return (
@@ -31,6 +49,14 @@ export const AuthPage = () => {
           <p className="text-xs text-slate-500">Sign in to access cashier register & stock control</p>
         </div>
 
+        {/* Error Banner */}
+        {errorMessage && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-semibold">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -44,7 +70,7 @@ export const AuthPage = () => {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. admin or cashier1"
+                placeholder="e.g. noro or admin"
                 className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               />
             </div>

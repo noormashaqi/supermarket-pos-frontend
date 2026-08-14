@@ -1,4 +1,20 @@
-const API_BASE_URL = 'http://127.0.0.1:5206';
+// Read API base URL dynamically from environment variables (.env)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+function getStoredToken(): string | null {
+  try {
+    const rawSession = localStorage.getItem('supermarket-pos-session');
+    if (rawSession) {
+      const parsed = JSON.parse(rawSession);
+      if (parsed?.accessToken) return parsed.accessToken;
+      if (parsed?.token) return parsed.token;
+    }
+    const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+    return token || null;
+  } catch {
+    return null;
+  }
+}
 
 export async function apiClient<T>(
   endpoint: string,
@@ -10,6 +26,11 @@ export async function apiClient<T>(
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+
+  const token = getStoredToken();
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
   const config: RequestInit = {
     ...options,

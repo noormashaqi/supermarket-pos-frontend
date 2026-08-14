@@ -1,138 +1,110 @@
 import { apiClient } from '../client';
-import type { ReturnRecord, ExecutePureReturnInput, ExecuteExchangeInput } from '../../types';
-import { invoicesService } from './invoicesService';
-import { productsService } from './productsService';
-
-let mockReturns: ReturnRecord[] = [];
+import type { ReturnRecord } from '../../types';
 
 export const returnsService = {
-  async getReturns(): Promise<ReturnRecord[]> {
-    return [...mockReturns];
-  },
+  async executePureReturn(input: {
+    originalInvoiceId: string;
+    productId: string;
+    quantityReturned: number;
+    reason: string;
+  }, employeeName: string = 'Current Employee'): Promise<ReturnRecord> {
+    const res = await apiClient<any>(`/api/Invoices/${input.originalInvoiceId}/return`, {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: Number(input.productId) || input.productId,
+        quantityReturned: input.quantityReturned,
+        reason: input.reason,
+        employeeName,
+      }),
+    });
 
-  async executePureReturn(input: ExecutePureReturnInput, employeeName: string = 'Cashier'): Promise<ReturnRecord> {
-    try {
-      await apiClient(`/api/invoices/${input.originalInvoiceId}/return`, {
-        method: 'POST',
-        body: JSON.stringify({
-          productId: Number(input.productId),
-          quantityReturned: input.quantityReturned,
-          reason: input.reason,
-        }),
-      });
-    } catch {
-      // fallback
-    }
-
-    // 1. Stock quantity restored (Stock In)
-    await productsService.addStock(
-      {
-        productId: input.productId,
-        quantityAdded: input.quantityReturned,
-        reason: `Pure Return for Invoice #${input.originalInvoiceId}`,
-      },
-      employeeName
-    );
-
-    // 2. Original invoice tagged as hasReturn
-    const originalInvoice = await invoicesService.getInvoiceById(input.originalInvoiceId);
-    if (originalInvoice) {
-      originalInvoice.hasReturn = true;
-    }
-
-    const prod = await productsService.getProductById(input.productId);
-
-    const record: ReturnRecord = {
-      id: `ret-${Date.now()}`,
+    return {
+      id: String(res?.id || Date.now()),
       originalInvoiceId: input.originalInvoiceId,
-      originalInvoiceNumber: originalInvoice?.invoiceNumber || `INV-${input.originalInvoiceId}`,
+      originalInvoiceNumber: res?.originalInvoiceNumber || `INV-${input.originalInvoiceId}`,
       type: 'PureReturn',
       productId: input.productId,
-      productName: prod?.name || 'Returned Product',
+      productName: res?.productName || 'Returned Product',
       quantityReturned: input.quantityReturned,
-      employeeId: 'emp-1',
+      employeeId: '1',
       employeeName,
-      reason: input.reason || 'Customer Return',
       createdAt: new Date().toISOString(),
+      reason: input.reason,
     };
-
-    mockReturns.unshift(record);
-    return record;
   },
 
-  async executeExchange(input: ExecuteExchangeInput, employeeName: string = 'Cashier'): Promise<ReturnRecord> {
-    try {
-      await apiClient(`/api/invoices/${input.originalInvoiceId}/exchange`, {
-        method: 'POST',
-        body: JSON.stringify({
-          productIdToReturn: Number(input.productIdToReturn),
-          quantityReturned: input.quantityReturned,
-          replacementProductId: Number(input.replacementProductId),
-          replacementQuantity: input.replacementQuantity,
-          reason: input.reason,
-        }),
-      });
-    } catch {
-      // fallback
-    }
+  async executeExchange(input: {
+    originalInvoiceId: string;
+    productId: string;
+    quantityReturned: number;
+    newItems: Array<{ productId: string; quantity: number }>;
+    reason: string;
+  }, employeeName: string = 'Current Employee'): Promise<{ returnRecord: ReturnRecord; newInvoiceId?: string }> {
+    const res = await apiClient<any>(`/api/Invoices/${input.originalInvoiceId}/exchange`, {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: Number(input.productId) || input.productId,
+        quantityReturned: input.quantityReturned,
+        newItems: input.newItems.map((item) => ({
+          productId: Number(item.productId) || item.productId,
+          quantity: item.quantity,
+        })),
+        reason: input.reason,
+        employeeName,
+      }),
+    });
 
-    // 1. Return old item to stock
-    await productsService.addStock(
-      {
-        productId: input.productIdToReturn,
-        quantityAdded: input.quantityReturned,
-        reason: `Exchange Return for Invoice #${input.originalInvoiceId}`,
+    const newInvId = res?.newInvoiceId ? String(res.newInvoiceId) : String(Date.now());
+
+    return {
+      returnRecord: {
+        id: String(res?.id || Date.now()),
+        originalInvoiceId: input.originalInvoiceId,
+        originalInvoiceNumber: res?.originalInvoiceNumber || `INV-${input.originalInvoiceId}`,
+        type: 'Exchange',
+        productId: input.productId,
+        productName: res?.productName || 'Exchanged Product',
+        quantityReturned: input.quantityReturned,
+        newInvoiceId: newInvId,
+        employeeId: '1',
+        employeeName,
+        createdAt: new Date().toISOString(),
+        reason: input.reason,
       },
-      employeeName
-    );
-
-    // 2. Issue NEW SEPARATE Invoice for replacement product
-    const replacementProd = await productsService.getProductById(input.replacementProductId);
-    const newInvoice = await invoicesService.createInvoice(
-      {
-        customerName: 'Exchange Customer',
-        discountPercentage: 0,
-        items: [
-          {
-            productId: input.replacementProductId,
-            quantity: input.replacementQuantity,
-          },
-        ],
-      },
-      [
-        {
-          name: replacementProd?.name || 'Replacement Product',
-          unit: replacementProd?.unit || 'piece',
-        },
-      ],
-      employeeName
-    );
-
-    // 3. Mark original invoice
-    const originalInvoice = await invoicesService.getInvoiceById(input.originalInvoiceId);
-    if (originalInvoice) {
-      originalInvoice.hasReturn = true;
-    }
-
-    const oldProd = await productsService.getProductById(input.productIdToReturn);
-
-    const record: ReturnRecord = {
-      id: `ret-${Date.now()}`,
-      originalInvoiceId: input.originalInvoiceId,
-      originalInvoiceNumber: originalInvoice?.invoiceNumber || `INV-${input.originalInvoiceId}`,
-      type: 'Exchange',
-      productId: input.productIdToReturn,
-      productName: oldProd?.name || 'Returned Product',
-      quantityReturned: input.quantityReturned,
-      newInvoiceId: newInvoice.id,
-      newInvoiceNumber: newInvoice.invoiceNumber,
-      employeeId: 'emp-1',
-      employeeName,
-      reason: input.reason || 'Customer Item Exchange',
-      createdAt: new Date().toISOString(),
+      newInvoiceId: newInvId,
     };
+  },
 
-    mockReturns.unshift(record);
-    return record;
+  async executeExchangeReturn(input: any, employeeName: string = 'Current Employee') {
+    return this.executeExchange(input, employeeName);
+  },
+
+  async getReturnHistory(invoiceId?: string): Promise<ReturnRecord[]> {
+    try {
+      let endpoint = '/api/Returns';
+      if (invoiceId) {
+        endpoint += `?invoiceId=${invoiceId}`;
+      }
+      const data = await apiClient<any[]>(endpoint);
+      if (Array.isArray(data)) {
+        return data.map((r) => ({
+          id: String(r.id),
+          originalInvoiceId: String(r.originalInvoiceId),
+          originalInvoiceNumber: r.originalInvoiceNumber || `INV-${r.originalInvoiceId}`,
+          type: r.type === 'Exchange' ? 'Exchange' : 'PureReturn',
+          productId: String(r.productId),
+          productName: r.productName || 'Product',
+          quantityReturned: r.quantityReturned || 1,
+          newInvoiceId: r.newInvoiceId ? String(r.newInvoiceId) : undefined,
+          employeeId: String(r.employeeId || '1'),
+          employeeName: r.employeeName || 'Staff',
+          createdAt: r.createdAt || r.date || new Date().toISOString(),
+          reason: r.reason || '',
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching return history:', err);
+    }
+    return [];
   },
 };

@@ -59,10 +59,9 @@ export const ReturnExchangeModal = ({
         }
         await returnsService.executeExchange({
           originalInvoiceId: invoice.id,
-          productIdToReturn: selectedProductId,
+          productId: selectedProductId,
           quantityReturned: returnQtyNum,
-          replacementProductId,
-          replacementQuantity: Number(replacementQuantity) || 1,
+          newItems: [{ productId: replacementProductId, quantity: Number(replacementQuantity) || 1 }],
           reason,
         });
       }

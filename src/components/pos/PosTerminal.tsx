@@ -137,10 +137,6 @@ export const PosTerminal = () => {
             quantity: item.quantity,
           })),
         },
-        cart.map((item) => ({
-          name: item.product.name,
-          unit: item.product.unit,
-        })),
         'Ahmad (Cashier)'
       );
 
