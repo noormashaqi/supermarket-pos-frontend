@@ -1,11 +1,21 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Users, UserPlus, Search, UserX, RefreshCw, UserCheck } from 'lucide-react';
+import { Users, UserPlus, Search, UserX, RefreshCw, UserCheck, Clock } from 'lucide-react';
 import { Badge, Table, Modal, ConfirmDialog, type Column } from '../components/common';
 import { useModal } from '../hooks';
 import type { CreateUserFormState, EmployeeOption } from '../types/app';
 import { apiClient } from '../api/client';
+import { formatDate } from '../utils';
+
+export interface AttendanceRecord {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  loginTime: string;
+  logoutTime?: string | null;
+}
 
 export const UsersPageWrapper = () => {
+  const [activeTab, setActiveTab] = useState<'employees' | 'attendance'>('employees');
   const [form, setForm] = useState<CreateUserFormState>({
     fullName: '',
     username: '',
@@ -14,23 +24,40 @@ export const UsersPageWrapper = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [attendanceLogs, setAttendanceLogs] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const addUserModal = useModal();
   const toggleStatusModal = useModal<EmployeeOption>();
 
-  const loadEmployees = async () => {
+  const loadData = async () => {
     setIsLoading(true);
     try {
-      const data = await apiClient<any[]>('/api/Employees');
-      if (Array.isArray(data)) {
+      const [empData, attData] = await Promise.all([
+        apiClient<any[]>('/api/Employees').catch(() => []),
+        apiClient<any[]>('/api/Attendance').catch(() => []),
+      ]);
+
+      if (Array.isArray(empData)) {
         setEmployees(
-          data.map((e) => ({
+          empData.map((e) => ({
             id: Number(e.id) || 1,
             fullName: e.fullName || e.name || 'User',
             username: e.username || 'user',
             role: e.role || 'Cashier',
             isActive: e.isActive ?? true,
+          }))
+        );
+      }
+
+      if (Array.isArray(attData)) {
+        setAttendanceLogs(
+          attData.map((a) => ({
+            id: Number(a.id) || 1,
+            employeeId: Number(a.employeeId) || 1,
+            employeeName: a.employeeName || 'Staff',
+            loginTime: a.loginTime || new Date().toISOString(),
+            logoutTime: a.logoutTime,
           }))
         );
       }
@@ -42,7 +69,7 @@ export const UsersPageWrapper = () => {
   };
 
   useEffect(() => {
-    loadEmployees();
+    loadData();
   }, []);
 
   const handleFormChange = (field: keyof CreateUserFormState, value: string) => {
@@ -60,7 +87,7 @@ export const UsersPageWrapper = () => {
         body: JSON.stringify(form),
       });
       setForm({ fullName: '', username: '', password: '', role: 'Cashier' });
-      await loadEmployees();
+      await loadData();
       addUserModal.close();
     } catch (err: any) {
       alert(`Error creating user: ${err.message || 'Failed'}`);
@@ -78,7 +105,7 @@ export const UsersPageWrapper = () => {
         method: 'PATCH',
         body: JSON.stringify({ isActive: !emp.isActive }),
       });
-      await loadEmployees();
+      await loadData();
       toggleStatusModal.close();
     } catch (err: any) {
       alert(`Error toggling status: ${err.message || 'Failed'}`);
@@ -94,7 +121,13 @@ export const UsersPageWrapper = () => {
       e.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const columns: Column<EmployeeOption>[] = [
+  const filteredAttendance = attendanceLogs.filter(
+    (a) =>
+      a.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(a.employeeId).includes(searchTerm)
+  );
+
+  const employeeColumns: Column<EmployeeOption>[] = [
     {
       header: 'Employee Name',
       cell: (emp) => (
@@ -149,6 +182,26 @@ export const UsersPageWrapper = () => {
     },
   ];
 
+  const attendanceColumns: Column<AttendanceRecord>[] = [
+    {
+      header: 'Employee Name',
+      cell: (att) => <span className="font-bold text-slate-800 text-xs">{att.employeeName}</span>,
+    },
+    {
+      header: 'Shift Login Time (وقت الدخول)',
+      cell: (att) => <span className="text-xs text-emerald-700 font-semibold">{formatDate(att.loginTime)}</span>,
+    },
+    {
+      header: 'Shift Logout Time (وقت الخروج)',
+      cell: (att) =>
+        att.logoutTime ? (
+          <span className="text-xs text-slate-500">{formatDate(att.logoutTime)}</span>
+        ) : (
+          <Badge variant="success">Active Shift (شفت حالي)</Badge>
+        ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -156,16 +209,16 @@ export const UsersPageWrapper = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-600" />
-            <span>Employee User Management (إدارة الموظفين)</span>
+            <span>Employees & Shift Attendance History</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Admin screen to register new employee accounts, view account status, and manage active/deactivated profiles.
+            Manage employee profiles, roles, and track real-time shift login/logout attendance records.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
-            onClick={loadEmployees}
+            onClick={loadData}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -182,31 +235,74 @@ export const UsersPageWrapper = () => {
         </div>
       </div>
 
-      {/* Search & Statistics Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search employee by name, username, or role..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 font-medium"
-          />
+      {/* Tabs & Search Controls */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex border-b border-slate-200 gap-4">
+          <button
+            onClick={() => setActiveTab('employees')}
+            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'employees'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Employees List ({employees.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'attendance'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Shift Attendance History ({attendanceLogs.length})</span>
+          </button>
         </div>
 
-        <span className="text-xs text-slate-500 font-medium">
-          Showing {filteredEmployees.length} Employee Profiles
-        </span>
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={
+                activeTab === 'employees'
+                  ? 'Search by name, username, or role...'
+                  : 'Search attendance by employee name...'
+              }
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 font-medium"
+            />
+          </div>
+
+          <span className="text-xs text-slate-500 font-medium">
+            {activeTab === 'employees'
+              ? `Showing ${filteredEmployees.length} Employees`
+              : `Showing ${filteredAttendance.length} Attendance Logs`}
+          </span>
+        </div>
       </div>
 
-      {/* Main Table Container */}
-      <Table
-        columns={columns}
-        data={filteredEmployees}
-        keyExtractor={(emp) => String(emp.id)}
-        emptyMessage="No employees found."
-      />
+      {/* Main Content Table View */}
+      {activeTab === 'employees' ? (
+        <Table
+          columns={employeeColumns}
+          data={filteredEmployees}
+          keyExtractor={(emp) => String(emp.id)}
+          emptyMessage="No employees found."
+        />
+      ) : (
+        <Table
+          columns={attendanceColumns}
+          data={filteredAttendance}
+          keyExtractor={(att) => String(att.id)}
+          emptyMessage="No attendance logs recorded."
+        />
+      )}
 
       {/* Add User Modal */}
       <Modal
