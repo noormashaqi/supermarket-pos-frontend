@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Users, UserPlus, Search, UserX, RefreshCw, UserCheck, Clock } from 'lucide-react';
+import { Users, UserPlus, Search, UserX, UserCheck, Clock } from 'lucide-react';
 import { Badge, Table, Modal, ConfirmDialog, type Column } from '../components/common';
 import { useModal } from '../hooks';
 import type { CreateUserFormState, EmployeeOption } from '../types/app';
@@ -216,23 +216,13 @@ export const UsersPageWrapper = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadData}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            onClick={() => addUserModal.open()}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Add New User</span>
-          </button>
-        </div>
+        <button
+          onClick={() => addUserModal.open()}
+          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>Add New User</span>
+        </button>
       </div>
 
       {/* Tabs & Search Controls */}
