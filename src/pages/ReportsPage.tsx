@@ -6,9 +6,6 @@ import {
   Package,
   Printer,
   Filter,
-  DollarSign,
-  FileText,
-  Undo2,
 } from 'lucide-react';
 import {
   reportsService,
@@ -236,32 +233,17 @@ export const ReportsPage = () => {
       {activeTab === 'sales' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase">Total Net Sales</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
+            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Net Sales</span>
             <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(totalNetSalesAll)}</p>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase">Total Invoices</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <FileText className="w-4 h-4" />
-              </div>
-            </div>
+            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Invoices</span>
             <p className="text-2xl font-extrabold text-slate-900">{totalInvoicesAll}</p>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase">Total Deducted Returns</span>
-              <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                <Undo2 className="w-4 h-4" />
-              </div>
-            </div>
+            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Deducted Returns</span>
             <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(totalReturnsAll)}</p>
           </div>
         </div>
