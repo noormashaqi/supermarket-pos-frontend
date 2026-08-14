@@ -36,3 +36,13 @@ export async function apiClient<T>(
 
   return response.json();
 }
+
+function getStoredToken(): string | null {
+  try {
+    const token = localStorage.getItem('token');
+    return token ? token : null;
+  } catch {
+    return null;
+  }
+}
+
