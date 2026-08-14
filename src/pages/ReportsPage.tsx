@@ -8,7 +8,7 @@ import {
   Filter,
   DollarSign,
   FileText,
-  RotateCcw,
+  Undo2,
 } from 'lucide-react';
 import {
   reportsService,
@@ -259,7 +259,7 @@ export const ReportsPage = () => {
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 uppercase">Total Deducted Returns</span>
               <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                <RotateCcw className="w-4 h-4" />
+                <Undo2 className="w-4 h-4" />
               </div>
             </div>
             <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(totalReturnsAll)}</p>
