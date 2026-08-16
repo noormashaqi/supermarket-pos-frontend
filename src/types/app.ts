@@ -11,6 +11,11 @@ export type SessionState = {
   permissions: string[]
 }
 
+export type RoleOption = {
+  id: number
+  name: string
+}
+
 export type ReportState = {
   sales: unknown
   inventory: unknown
@@ -89,6 +94,7 @@ export type CreateUserFormState = {
   username: string
   password: string
   role: string
+  roleId?: number
 }
 
 export type ResetPasswordFormState = {
@@ -116,10 +122,13 @@ export type ReportFiltersState = {
 }
 
 export type PrintingFiltersState = {
-  invoiceDate: string
-  invoiceEmployeeId: string
-  invoiceProductId: string
-  invoiceId: string
+  date: string
+  employeeId: string
+  productId: string
+  invoiceDate?: string
+  invoiceEmployeeId?: string
+  invoiceProductId?: string
+  invoiceId?: string
 }
 
 export type EmployeeOption = {
@@ -128,6 +137,7 @@ export type EmployeeOption = {
   username: string
   role: string
   isActive: boolean
+  roleId?: number
 }
 
 export type ProductOption = {

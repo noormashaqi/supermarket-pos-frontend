@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { Users, UserPlus, Search, UserX, UserCheck, Clock } from 'lucide-react';
 import { Badge, Table, Modal, ConfirmDialog, type Column } from '../components/common';
 import { useModal } from '../hooks';
-import type { CreateUserFormState, EmployeeOption } from '../types/app';
+import type { CreateUserFormState, EmployeeOption, RoleOption } from '../types/app';
 import { apiClient } from '../api/client';
 import { formatDate } from '../utils';
 
@@ -14,13 +14,21 @@ export interface AttendanceRecord {
   logoutTime?: string | null;
 }
 
+const defaultRoles: RoleOption[] = [
+  { id: 1, name: 'Admin' },
+  { id: 2, name: 'Cashier' },
+  { id: 3, name: 'InventoryEmployee' },
+];
+
 export const UsersPageWrapper = () => {
   const [activeTab, setActiveTab] = useState<'employees' | 'attendance'>('employees');
+  const [roles, setRoles] = useState<RoleOption[]>(defaultRoles);
   const [form, setForm] = useState<CreateUserFormState>({
     fullName: '',
     username: '',
     password: '',
     role: 'Cashier',
+    roleId: 2,
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
@@ -33,10 +41,26 @@ export const UsersPageWrapper = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [empData, attData] = await Promise.all([
+      const [empData, attData, rolesData] = await Promise.all([
         apiClient<any[]>('/api/Employees').catch(() => []),
         apiClient<any[]>('/api/Attendance').catch(() => []),
+        apiClient<any[]>('/api/Roles').catch(() => []),
       ]);
+
+      if (Array.isArray(rolesData) && rolesData.length > 0) {
+        const mappedRoles = rolesData.map((r: any) => ({
+          id: Number(r.id || r.roleId) || 1,
+          name: String(r.name || r.roleName || r.role || 'Role'),
+        }));
+        setRoles(mappedRoles);
+        if (mappedRoles.length > 0 && !form.roleId) {
+          setForm((prev) => ({
+            ...prev,
+            roleId: mappedRoles[0].id,
+            role: mappedRoles[0].name,
+          }));
+        }
+      }
 
       if (Array.isArray(empData)) {
         setEmployees(
@@ -45,6 +69,7 @@ export const UsersPageWrapper = () => {
             fullName: e.fullName || e.name || 'User',
             username: e.username || 'user',
             role: e.role || 'Cashier',
+            roleId: e.roleId ? Number(e.roleId) : undefined,
             isActive: e.isActive ?? true,
           }))
         );
@@ -72,8 +97,18 @@ export const UsersPageWrapper = () => {
     loadData();
   }, []);
 
-  const handleFormChange = (field: keyof CreateUserFormState, value: string) => {
+  const handleFormChange = (field: keyof CreateUserFormState, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleRoleSelectChange = (roleIdVal: string) => {
+    const selectedId = Number(roleIdVal);
+    const foundRole = roles.find((r) => r.id === selectedId);
+    setForm((prev) => ({
+      ...prev,
+      roleId: selectedId,
+      role: foundRole ? foundRole.name : prev.role,
+    }));
   };
 
   const handleCreateUserSubmit = async (e: FormEvent) => {
@@ -82,11 +117,20 @@ export const UsersPageWrapper = () => {
 
     setIsLoading(true);
     try {
+      const payload = {
+        fullName: form.fullName,
+        username: form.username,
+        password: form.password,
+        roleId: form.roleId || 2,
+        role: form.role || 'Cashier',
+      };
+
       await apiClient('/api/Employees', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
-      setForm({ fullName: '', username: '', password: '', role: 'Cashier' });
+
+      setForm({ fullName: '', username: '', password: '', role: 'Cashier', roleId: 2 });
       await loadData();
       addUserModal.close();
     } catch (err: any) {
@@ -138,45 +182,34 @@ export const UsersPageWrapper = () => {
       ),
     },
     {
-      header: 'Role',
-      cell: (emp) => {
-        if (emp.role === 'Admin') return <Badge variant="info">Admin</Badge>;
-        if (emp.role === 'InventoryEmployee' || emp.role === 'Inventory')
-          return <Badge variant="warning">Inventory Employee</Badge>;
-        return <Badge variant="success">Cashier</Badge>;
-      },
+      header: 'Assigned Role',
+      cell: (emp) => (
+        <Badge variant={emp.role === 'Admin' ? 'danger' : emp.role === 'InventoryEmployee' || emp.role === 'Inventory' ? 'warning' : 'info'}>
+          {emp.role}
+        </Badge>
+      ),
     },
     {
       header: 'Account Status',
-      cell: (emp) =>
-        emp.isActive ? (
-          <Badge variant="success">Active</Badge>
-        ) : (
-          <Badge variant="danger">Deactivated</Badge>
-        ),
+      cell: (emp) => (
+        <Badge variant={emp.isActive ? 'success' : 'danger'}>
+          {emp.isActive ? 'Active (نشط)' : 'Deactivated (معطل)'}
+        </Badge>
+      ),
     },
     {
       header: 'Actions',
       cell: (emp) => (
         <button
           onClick={() => toggleStatusModal.open(emp)}
-          className={`flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-lg cursor-pointer transition-colors ${
+          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border cursor-pointer ${
             emp.isActive
-              ? 'text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100'
-              : 'text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
+              ? 'text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100'
+              : 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
           }`}
         >
-          {emp.isActive ? (
-            <>
-              <UserX className="w-3.5 h-3.5" />
-              <span>Deactivate</span>
-            </>
-          ) : (
-            <>
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Activate</span>
-            </>
-          )}
+          {emp.isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+          <span>{emp.isActive ? 'Deactivate' : 'Activate'}</span>
         </button>
       ),
     },
@@ -188,44 +221,51 @@ export const UsersPageWrapper = () => {
       cell: (att) => <span className="font-bold text-slate-800 text-xs">{att.employeeName}</span>,
     },
     {
-      header: 'Shift Login Time (وقت الدخول)',
-      cell: (att) => <span className="text-xs text-emerald-700 font-semibold">{formatDate(att.loginTime)}</span>,
+      header: 'Login Time (وقت الدخول)',
+      cell: (att) => <span className="text-xs font-semibold text-blue-600">{formatDate(att.loginTime)}</span>,
     },
     {
-      header: 'Shift Logout Time (وقت الخروج)',
-      cell: (att) =>
-        att.logoutTime ? (
-          <span className="text-xs text-slate-500">{formatDate(att.logoutTime)}</span>
-        ) : (
-          <Badge variant="success">Active Shift (شفت حالي)</Badge>
-        ),
+      header: 'Logout Time (وقت الخروج)',
+      cell: (att) => (
+        <span className="text-xs font-semibold text-slate-600">
+          {att.logoutTime ? formatDate(att.logoutTime) : 'Active Session'}
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      cell: (att) => (
+        <Badge variant={att.logoutTime ? 'info' : 'success'}>
+          {att.logoutTime ? 'Shift Finished' : 'Currently On Duty'}
+        </Badge>
+      ),
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
+      {/* Header Panel */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-600" />
-            <span>Employees & Shift Attendance History</span>
+            <span>Staff & Attendance Directory (إدارة الموظفين والدخول)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage employee profiles, roles, and track real-time shift login/logout attendance records.
+            Manage employee accounts, assign roles, inspect active shifts, or toggle login access.
           </p>
         </div>
 
         <button
           onClick={() => addUserModal.open()}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Add New User</span>
+          <span>Add New Employee</span>
         </button>
       </div>
 
-      {/* Tabs & Search Controls */}
+      {/* Tabs Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex border-b border-slate-200 gap-4">
           <button
@@ -237,7 +277,7 @@ export const UsersPageWrapper = () => {
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Employees List ({employees.length})</span>
+            <span>Employee Accounts ({employees.length})</span>
           </button>
 
           <button
@@ -249,35 +289,28 @@ export const UsersPageWrapper = () => {
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>Shift Attendance History ({attendanceLogs.length})</span>
+            <span>Shift Attendance Log ({attendanceLogs.length})</span>
           </button>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={
-                activeTab === 'employees'
-                  ? 'Search by name, username, or role...'
-                  : 'Search attendance by employee name...'
-              }
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 font-medium"
-            />
-          </div>
-
-          <span className="text-xs text-slate-500 font-medium">
-            {activeTab === 'employees'
-              ? `Showing ${filteredEmployees.length} Employees`
-              : `Showing ${filteredAttendance.length} Attendance Logs`}
-          </span>
+        {/* Search Bar */}
+        <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <Search className="w-4 h-4 text-slate-400 pl-1 shrink-0" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={
+              activeTab === 'employees'
+                ? 'Search employee by name, username, or role...'
+                : 'Search shift history by employee name...'
+            }
+            className="w-full text-xs text-slate-800 focus:outline-none placeholder-slate-400 font-medium bg-transparent"
+          />
         </div>
       </div>
 
-      {/* Main Content Table View */}
+      {/* Main Table */}
       {activeTab === 'employees' ? (
         <Table
           columns={employeeColumns}
@@ -290,16 +323,15 @@ export const UsersPageWrapper = () => {
           columns={attendanceColumns}
           data={filteredAttendance}
           keyExtractor={(att) => String(att.id)}
-          emptyMessage="No attendance logs recorded."
+          emptyMessage="No shift attendance records found."
         />
       )}
 
-      {/* Add User Modal */}
+      {/* Add New Employee Modal */}
       <Modal
         isOpen={addUserModal.isOpen}
         onClose={addUserModal.close}
-        title="Add New Employee User"
-        maxWidth="md"
+        title="Add New Employee Account (إضافة موظف جديد)"
       >
         <form onSubmit={handleCreateUserSubmit} className="space-y-4">
           <div>
@@ -311,7 +343,7 @@ export const UsersPageWrapper = () => {
               required
               value={form.fullName}
               onChange={(e) => handleFormChange('fullName', e.target.value)}
-              placeholder="e.g. Tariq Al-Mansoor"
+              placeholder="e.g. Tariq Ahmad"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
             />
           </div>
@@ -345,16 +377,18 @@ export const UsersPageWrapper = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-              Role
+              Role (الدورالوظيفي) <span className="text-rose-500">*</span>
             </label>
             <select
-              value={form.role}
-              onChange={(e) => handleFormChange('role', e.target.value)}
+              value={form.roleId || ''}
+              onChange={(e) => handleRoleSelectChange(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="Cashier">Cashier (كاشير)</option>
-              <option value="InventoryEmployee">Inventory Employee (موظف مخزون)</option>
-              <option value="Admin">Admin (مدير النظام)</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
             </select>
           </div>
 
