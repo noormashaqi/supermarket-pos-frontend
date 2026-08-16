@@ -15,8 +15,8 @@ export const invoicesService = {
       const data = await apiClient<any[]>(endpoint);
       if (Array.isArray(data)) {
         return data.map((inv) => ({
-          id: String(inv.id),
-          invoiceNumber: inv.invoiceNumber || `INV-${inv.id}`,
+          id: String(inv.id || inv.invoiceId),
+          invoiceNumber: inv.invoiceNumber || `INV-${inv.id || inv.invoiceId}`,
           employeeId: String(inv.employeeId || '1'),
           employeeName: inv.employeeName || 'Staff',
           customerName: inv.customerName || 'Walk-in Customer',
@@ -25,7 +25,7 @@ export const invoicesService = {
                 productId: String(item.productId),
                 productNameSnapshot: item.productNameSnapshot || item.productName || 'Product',
                 unitPriceSnapshot: item.unitPriceSnapshot || item.unitPrice || 0,
-                unit: item.unit === 'package' ? 'package' : 'piece',
+                unit: (item.unit && item.unit.toLowerCase() === 'package') ? 'package' : 'piece',
                 quantity: item.quantity || 1,
                 lineTotal: item.lineTotal || 0,
               }))
@@ -47,10 +47,10 @@ export const invoicesService = {
   async getInvoiceById(id: string): Promise<Invoice | undefined> {
     try {
       const inv = await apiClient<any>(`/api/Invoices/${id}`);
-      if (inv && inv.id) {
+      if (inv && (inv.id || inv.invoiceId)) {
         return {
-          id: String(inv.id),
-          invoiceNumber: inv.invoiceNumber || `INV-${inv.id}`,
+          id: String(inv.id || inv.invoiceId),
+          invoiceNumber: inv.invoiceNumber || `INV-${inv.id || inv.invoiceId}`,
           employeeId: String(inv.employeeId || '1'),
           employeeName: inv.employeeName || 'Staff',
           customerName: inv.customerName || 'Walk-in Customer',
@@ -59,7 +59,7 @@ export const invoicesService = {
                 productId: String(item.productId),
                 productNameSnapshot: item.productNameSnapshot || item.productName || 'Product',
                 unitPriceSnapshot: item.unitPriceSnapshot || item.unitPrice || 0,
-                unit: item.unit === 'package' ? 'package' : 'piece',
+                unit: (item.unit && item.unit.toLowerCase() === 'package') ? 'package' : 'piece',
                 quantity: item.quantity || 1,
                 lineTotal: item.lineTotal || 0,
               }))
@@ -92,13 +92,21 @@ export const invoicesService = {
       }),
     });
 
+    const realId = response?.invoiceId || response?.id;
+    if (realId) {
+      const realInvoice = await this.getInvoiceById(String(realId));
+      if (realInvoice) {
+        return realInvoice;
+      }
+    }
+
     return {
-      id: String(response?.id || Date.now()),
+      id: String(realId || Date.now()),
       invoiceNumber: response?.invoiceNumber || `INV-${Date.now()}`,
       employeeId: '1',
       employeeName,
       customerName: input.customerName || 'Walk-in Customer',
-      items: response?.items || [],
+      items: [],
       totalBeforeDiscount: response?.totalBeforeDiscount || 0,
       discountPercentage: input.discountPercentage || 0,
       totalAfterDiscount: response?.totalAfterDiscount || 0,
