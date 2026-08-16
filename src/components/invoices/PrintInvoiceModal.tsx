@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Printer, FileText, Receipt } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Printer, FileText, Receipt, Loader2 } from 'lucide-react';
 import { Modal } from '../common';
 import type { Invoice } from '../../types';
+import type { PrintableInvoice } from '../../types/app';
+import { invoicesService } from '../../api/services/invoicesService';
 import { formatCurrency, formatDate } from '../../utils';
 
 interface PrintInvoiceModalProps {
@@ -16,11 +18,112 @@ export const PrintInvoiceModal = ({
   invoice,
 }: PrintInvoiceModalProps) => {
   const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
+  const [printableData, setPrintableData] = useState<PrintableInvoice | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen && invoice?.id) {
+      setIsLoading(true);
+      invoicesService
+        .getPrintableInvoice(invoice.id)
+        .then((data) => {
+          if (data) {
+            setPrintableData(data);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
+    } else {
+      setPrintableData(null);
+    }
+  }, [isOpen, invoice?.id]);
 
   if (!invoice) return null;
 
+  const displayCashier = printableData?.employeeName || invoice.employeeName || 'Staff';
+  const displayDate = printableData?.date ? formatDate(printableData.date) : formatDate(invoice.createdAt);
+  const displayItems = printableData?.items && printableData.items.length > 0
+    ? printableData.items.map((i) => ({
+        name: i.productName,
+        price: i.unitPrice,
+        qty: i.quantity,
+        total: i.lineTotal,
+        unit: 'piece',
+      }))
+    : invoice.items.map((i) => ({
+        name: i.productNameSnapshot,
+        price: i.unitPriceSnapshot,
+        qty: i.quantity,
+        total: i.lineTotal,
+        unit: i.unit || 'piece',
+      }));
+
+  const subtotal = printableData?.totalBeforeDiscount ?? invoice.totalBeforeDiscount;
+  const discountPct = printableData?.discountPercentage ?? invoice.discountPercentage;
+  const discountAmt = printableData?.discountAmount ?? (subtotal * (discountPct / 100));
+  const totalPayable = printableData?.totalAfterDiscount ?? invoice.totalAfterDiscount;
+
   const handlePrint = () => {
-    window.print();
+    let contentHtml = '';
+    if (printFormat === 'thermal' && printableData?.htmlReceipt) {
+      contentHtml = printableData.htmlReceipt;
+    } else {
+      const el = document.getElementById(printFormat === 'thermal' ? 'thermal-receipt' : 'a4-receipt');
+      if (!el) return;
+
+      contentHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Invoice #${invoice.invoiceNumber}</title>
+            <style>
+              body { font-family: 'Courier New', Courier, monospace, sans-serif; margin: 0; padding: 15px; color: #000; background: #fff; font-size: 12px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th, td { padding: 4px 2px; border-bottom: 1px dotted #ccc; text-align: left; font-size: 11px; }
+              th { border-bottom: 1px solid #000; border-top: 1px solid #000; font-weight: bold; }
+              .text-right { text-align: right; }
+              .text-center { text-align: center; }
+              .font-bold { font-weight: bold; }
+              .border-dashed { border-style: dashed; }
+              @media print {
+                @page { size: ${printFormat === 'thermal' ? '80mm auto' : 'A4'}; margin: ${printFormat === 'thermal' ? '0' : '15mm'}; }
+                body { width: 100%; margin: 0; padding: 5px; }
+              }
+            </style>
+          </head>
+          <body>
+            ${el.innerHTML}
+          </body>
+        </html>
+      `;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(contentHtml);
+      doc.close();
+
+      iframe.contentWindow?.focus();
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 1000);
+      }, 300);
+    }
   };
 
   return (
@@ -60,9 +163,10 @@ export const PrintInvoiceModal = ({
 
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer"
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
           >
-            <Printer className="w-3.5 h-3.5" />
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
             <span>Print Receipt</span>
           </button>
         </div>
@@ -71,12 +175,11 @@ export const PrintInvoiceModal = ({
         <div className="p-4 bg-slate-100 rounded-xl flex justify-center overflow-x-auto border border-slate-200">
           {printFormat === 'thermal' ? (
             /* THERMAL 80mm RECEIPT LAYOUT */
-            <div id="thermal-receipt" className="w-[300px] bg-white p-4 font-mono text-xs text-slate-900 border border-slate-300 shadow-xs print:w-full print:p-0 print:border-none print:shadow-none">
+            <div id="thermal-receipt" className="w-[300px] bg-white p-4 font-mono text-xs text-slate-900 border border-slate-300 shadow-xs">
               {/* Header */}
               <div className="text-center space-y-1 border-b border-dashed pb-3 mb-3 border-slate-400">
                 <h2 className="text-base font-extrabold tracking-wide">SUPERMARKET POS</h2>
-                <p className="text-[10px] text-slate-600">Main Store Branch</p>
-                <p className="text-[10px] text-slate-600">Tel: +962 6 500 0000</p>
+                <p className="text-[10px] text-slate-600">Sales Receipt</p>
               </div>
 
               {/* Invoice Meta */}
@@ -87,16 +190,18 @@ export const PrintInvoiceModal = ({
                 </div>
                 <div className="flex justify-between">
                   <span>DATE:</span>
-                  <span>{formatDate(invoice.createdAt)}</span>
+                  <span>{displayDate}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>CASHIER:</span>
-                  <span>{invoice.employeeName}</span>
+                  <span>{displayCashier}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>CUSTOMER:</span>
-                  <span>{invoice.customerName || 'Walk-in'}</span>
-                </div>
+                {invoice.customerName && (
+                  <div className="flex justify-between">
+                    <span>CUSTOMER:</span>
+                    <span>{invoice.customerName}</span>
+                  </div>
+                )}
               </div>
 
               {/* Items Table */}
@@ -108,36 +213,36 @@ export const PrintInvoiceModal = ({
                 </div>
 
                 <div className="space-y-2">
-                  {invoice.items.map((item, idx) => (
+                  {displayItems.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-12 text-[11px]">
                       <div className="col-span-6">
-                        <p className="font-semibold truncate">{item.productNameSnapshot}</p>
-                        <p className="text-[9px] text-slate-500">{formatCurrency(item.unitPriceSnapshot)} / {item.unit}</p>
+                        <p className="font-semibold truncate">{item.name}</p>
+                        <p className="text-[9px] text-slate-500">{formatCurrency(item.price)}</p>
                       </div>
-                      <span className="col-span-2 text-center">{item.quantity}</span>
+                      <span className="col-span-2 text-center">{item.qty}</span>
                       <span className="col-span-4 text-right font-bold">
-                        {formatCurrency(item.lineTotal)}
+                        {formatCurrency(item.total)}
                       </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Totals (Percentage Discount on Invoice Level, NO Tax) */}
+              {/* Totals */}
               <div className="space-y-1 text-[11px] border-b border-dashed pb-3 mb-3 border-slate-400">
                 <div className="flex justify-between">
                   <span>SUBTOTAL:</span>
-                  <span>{formatCurrency(invoice.totalBeforeDiscount)}</span>
+                  <span>{formatCurrency(subtotal)}</span>
                 </div>
-                {invoice.discountPercentage > 0 && (
+                {discountPct > 0 && (
                   <div className="flex justify-between text-rose-600">
-                    <span>DISCOUNT ({invoice.discountPercentage}%):</span>
-                    <span>-{formatCurrency(invoice.totalBeforeDiscount * (invoice.discountPercentage / 100))}</span>
+                    <span>DISCOUNT ({discountPct}%):</span>
+                    <span>-{formatCurrency(discountAmt)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-extrabold border-t border-slate-400 pt-1 mt-1">
                   <span>TOTAL DUE (CASH):</span>
-                  <span>{formatCurrency(invoice.totalAfterDiscount)}</span>
+                  <span>{formatCurrency(totalPayable)}</span>
                 </div>
               </div>
 
@@ -149,7 +254,7 @@ export const PrintInvoiceModal = ({
             </div>
           ) : (
             /* STANDARD A4 PRINT LAYOUT */
-            <div className="w-full bg-white p-6 rounded-xl text-sm text-slate-800 space-y-6 border border-slate-200">
+            <div id="a4-receipt" className="w-full bg-white p-6 rounded-xl text-sm text-slate-800 space-y-6 border border-slate-200">
               <div className="flex justify-between items-start border-b pb-4">
                 <div>
                   <h2 className="text-xl font-extrabold text-blue-900">SUPERMARKET POS SYSTEM</h2>
@@ -157,7 +262,7 @@ export const PrintInvoiceModal = ({
                 </div>
                 <div className="text-right">
                   <span className="text-base font-bold text-slate-900">{invoice.invoiceNumber}</span>
-                  <p className="text-xs text-slate-500">{formatDate(invoice.createdAt)}</p>
+                  <p className="text-xs text-slate-500">{displayDate}</p>
                 </div>
               </div>
 
@@ -168,7 +273,7 @@ export const PrintInvoiceModal = ({
                 </div>
                 <div>
                   <p className="font-bold text-slate-500">Issued By:</p>
-                  <p className="font-semibold text-slate-800">Cashier: {invoice.employeeName}</p>
+                  <p className="font-semibold text-slate-800">Cashier: {displayCashier}</p>
                 </div>
               </div>
 
@@ -176,20 +281,18 @@ export const PrintInvoiceModal = ({
                 <thead className="bg-slate-100 text-slate-700 uppercase font-semibold">
                   <tr>
                     <th className="p-2 border-b">Product</th>
-                    <th className="p-2 border-b">Unit</th>
                     <th className="p-2 border-b text-right">Price</th>
                     <th className="p-2 border-b text-center">Qty</th>
                     <th className="p-2 border-b text-right">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {invoice.items.map((item, idx) => (
+                  {displayItems.map((item, idx) => (
                     <tr key={idx}>
-                      <td className="p-2 font-medium">{item.productNameSnapshot}</td>
-                      <td className="p-2 text-slate-500 uppercase">{item.unit}</td>
-                      <td className="p-2 text-right">{formatCurrency(item.unitPriceSnapshot)}</td>
-                      <td className="p-2 text-center font-bold">{item.quantity}</td>
-                      <td className="p-2 text-right font-semibold">{formatCurrency(item.lineTotal)}</td>
+                      <td className="p-2 font-medium">{item.name}</td>
+                      <td className="p-2 text-right">{formatCurrency(item.price)}</td>
+                      <td className="p-2 text-center font-bold">{item.qty}</td>
+                      <td className="p-2 text-right font-semibold">{formatCurrency(item.total)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -199,17 +302,17 @@ export const PrintInvoiceModal = ({
                 <div className="w-64 space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Total Before Discount:</span>
-                    <span className="font-semibold">{formatCurrency(invoice.totalBeforeDiscount)}</span>
+                    <span className="font-semibold">{formatCurrency(subtotal)}</span>
                   </div>
-                  {invoice.discountPercentage > 0 && (
+                  {discountPct > 0 && (
                     <div className="flex justify-between text-rose-600">
-                      <span>Discount ({invoice.discountPercentage}%):</span>
-                      <span>-{formatCurrency(invoice.totalBeforeDiscount * (invoice.discountPercentage / 100))}</span>
+                      <span>Discount ({discountPct}%):</span>
+                      <span>-{formatCurrency(discountAmt)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-base font-bold border-t pt-2 text-slate-900">
                     <span>Total Paid (Cash):</span>
-                    <span className="text-emerald-600">{formatCurrency(invoice.totalAfterDiscount)}</span>
+                    <span className="text-emerald-600">{formatCurrency(totalPayable)}</span>
                   </div>
                 </div>
               </div>

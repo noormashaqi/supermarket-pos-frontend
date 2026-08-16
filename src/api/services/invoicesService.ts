@@ -115,4 +115,38 @@ export const invoicesService = {
       createdAt: new Date().toISOString(),
     };
   },
+
+  async getPrintableInvoice(id: string) {
+    try {
+      const data = await apiClient<any>(`/api/Invoices/${id}/printable`);
+      if (data) {
+        return {
+          invoiceId: Number(data.invoiceId || data.id),
+          invoiceNumber: String(data.invoiceNumber || ''),
+          employeeName: String(data.employeeName || ''),
+          date: String(data.date || ''),
+          paymentMethod: String(data.paymentMethod || 'Cash'),
+          totalBeforeDiscount: Number(data.totalBeforeDiscount || 0),
+          discountPercentage: Number(data.discountPercentage || 0),
+          discountAmount: Number(data.discountAmount || 0),
+          totalAfterDiscount: Number(data.totalAfterDiscount || 0),
+          hasReturn: Boolean(data.hasReturn),
+          items: Array.isArray(data.items)
+            ? data.items.map((i: any) => ({
+                productId: Number(i.productId),
+                productName: String(i.productName || i.productNameSnapshot || ''),
+                unitPrice: Number(i.unitPrice || i.unitPriceSnapshot || 0),
+                quantity: Number(i.quantity || 0),
+                lineTotal: Number(i.lineTotal || 0),
+              }))
+            : [],
+          htmlReceipt: String(data.htmlReceipt || ''),
+        };
+      }
+    } catch (err) {
+      console.error('Error fetching printable invoice:', err);
+    }
+    return null;
+  },
 };
+
