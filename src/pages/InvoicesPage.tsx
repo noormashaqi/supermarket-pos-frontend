@@ -31,7 +31,7 @@ export const InvoicesPage = () => {
   const loadFilterData = async () => {
     try {
       const [prods, emps] = await Promise.all([
-        productsService.getProducts(undefined, false), // Fetch all products, active and discontinued
+        productsService.getProducts(undefined, false),
         apiClient<any[]>('/api/Employees').catch(() => []),
       ]);
       setProducts(prods);
@@ -51,6 +51,27 @@ export const InvoicesPage = () => {
     }
   };
 
+  const selectInvoiceWithDetails = async (inv: Invoice): Promise<Invoice> => {
+    if (inv.items && inv.items.length > 0) {
+      setSelectedInvoice(inv);
+      return inv;
+    }
+    try {
+      const fullInvoice = await invoicesService.getInvoiceById(inv.id);
+      if (fullInvoice) {
+        setSelectedInvoice(fullInvoice);
+        setInvoices((prev) =>
+          prev.map((item) => (item.id === fullInvoice.id ? fullInvoice : item))
+        );
+        return fullInvoice;
+      }
+    } catch (err) {
+      console.error('Error fetching invoice details:', err);
+    }
+    setSelectedInvoice(inv);
+    return inv;
+  };
+
   const loadInvoices = async () => {
     setIsLoading(true);
     try {
@@ -63,17 +84,12 @@ export const InvoicesPage = () => {
       const data = await invoicesService.getInvoices(filters);
       setInvoices(data);
       
-      if (selectedInvoice) {
-        const updated = data.find((inv) => inv.id === selectedInvoice.id);
-        if (updated) {
-          setSelectedInvoice(updated);
-        } else if (data.length > 0) {
-          setSelectedInvoice(data[0]);
-        } else {
-          setSelectedInvoice(null);
-        }
-      } else if (data.length > 0) {
-        setSelectedInvoice(data[0]);
+      const target = selectedInvoice
+        ? data.find((inv) => inv.id === selectedInvoice.id) || data[0]
+        : data[0];
+
+      if (target) {
+        await selectInvoiceWithDetails(target);
       } else {
         setSelectedInvoice(null);
       }
@@ -113,7 +129,7 @@ export const InvoicesPage = () => {
       header: 'Invoice Number',
       cell: (inv) => (
         <span
-          onClick={() => setSelectedInvoice(inv)}
+          onClick={() => selectInvoiceWithDetails(inv)}
           className="font-mono text-xs font-bold text-blue-600 hover:underline cursor-pointer"
         >
           {inv.invoiceNumber}
@@ -153,8 +169,8 @@ export const InvoicesPage = () => {
       cell: (inv) => (
         <div className="flex gap-1">
           <button
-            onClick={() => {
-              setSelectedInvoice(inv);
+            onClick={async () => {
+              await selectInvoiceWithDetails(inv);
               setIsPrintModalOpen(true);
             }}
             className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 cursor-pointer"
@@ -165,8 +181,8 @@ export const InvoicesPage = () => {
           
           {canReturnOrExchange && !inv.isFullyReturned && (
             <button
-              onClick={() => {
-                setSelectedInvoice(inv);
+              onClick={async () => {
+                await selectInvoiceWithDetails(inv);
                 setIsReturnModalOpen(true);
               }}
               className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 cursor-pointer"
@@ -196,7 +212,10 @@ export const InvoicesPage = () => {
 
         {selectedInvoice && (
           <button
-            onClick={() => setIsPrintModalOpen(true)}
+            onClick={async () => {
+              await selectInvoiceWithDetails(selectedInvoice);
+              setIsPrintModalOpen(true);
+            }}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
           >
             <Printer className="w-4 h-4" />
@@ -250,7 +269,7 @@ export const InvoicesPage = () => {
               onChange={(e) => setFilterEmployeeId(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
             >
-              <option value="">All Employees</option>
+              <option value="">All Staff</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.fullName} (@{emp.username})
@@ -259,7 +278,7 @@ export const InvoicesPage = () => {
             </select>
           </div>
 
-          {/* Product Filter */}
+          {/* Product Included Filter */}
           <div>
             <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5 flex items-center gap-1">
               <Package className="w-3 h-3" />
@@ -273,7 +292,7 @@ export const InvoicesPage = () => {
               <option value="">All Products</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.unit === 'package' ? 'Package' : 'Piece'})
+                  {p.name} ({p.unit})
                 </option>
               ))}
             </select>
@@ -284,17 +303,17 @@ export const InvoicesPage = () => {
           <div className="flex justify-end pt-1">
             <button
               onClick={resetFilters}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-100 rounded-xl px-4 py-1.5 cursor-pointer transition-all"
+              className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer"
             >
-              Clear All Filters
+              Reset Filters
             </button>
           </div>
         )}
       </div>
 
-      {/* Grid: Invoice List & Preview Drawer */}
+      {/* Grid: Left Table, Right Invoice Details */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Invoices Table */}
+        {/* Left: Invoices List Table */}
         <div className="lg:col-span-7 space-y-4">
           <Table
             columns={columns}
@@ -347,19 +366,23 @@ export const InvoicesPage = () => {
               <div className="space-y-2">
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">Itemized Breakdown</p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {selectedInvoice.items.map((item, idx) => (
-                    <div key={idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between text-xs hover:bg-slate-100 transition-colors">
-                      <div>
-                        <p className="font-bold text-slate-800">{item.productNameSnapshot}</p>
-                        <p className="text-[10px] text-slate-500">
-                          {formatCurrency(item.unitPriceSnapshot)} / {item.unit} x {item.quantity}
-                        </p>
+                  {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
+                    selectedInvoice.items.map((item, idx) => (
+                      <div key={idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between text-xs hover:bg-slate-100 transition-colors">
+                        <div>
+                          <p className="font-bold text-slate-800">{item.productNameSnapshot}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {formatCurrency(item.unitPriceSnapshot)} / {item.unit} x {item.quantity}
+                          </p>
+                        </div>
+                        <span className="font-bold text-emerald-600 self-center">
+                          {formatCurrency(item.lineTotal)}
+                        </span>
                       </div>
-                      <span className="font-bold text-emerald-600 self-center">
-                        {formatCurrency(item.lineTotal)}
-                      </span>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">Loading items breakdown...</p>
+                  )}
                 </div>
               </div>
 
@@ -384,7 +407,10 @@ export const InvoicesPage = () => {
               {/* Action Buttons */}
               <div className="flex flex-col gap-2 pt-1">
                 <button
-                  onClick={() => setIsPrintModalOpen(true)}
+                  onClick={async () => {
+                    await selectInvoiceWithDetails(selectedInvoice);
+                    setIsPrintModalOpen(true);
+                  }}
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <Printer className="w-4 h-4" />
@@ -393,7 +419,10 @@ export const InvoicesPage = () => {
 
                 {canReturnOrExchange && !selectedInvoice.isFullyReturned && (
                   <button
-                    onClick={() => setIsReturnModalOpen(true)}
+                    onClick={async () => {
+                      await selectInvoiceWithDetails(selectedInvoice);
+                      setIsReturnModalOpen(true);
+                    }}
                     className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 flex items-center justify-center gap-2 cursor-pointer transition-all"
                   >
                     <Undo2 className="w-4 h-4" />
