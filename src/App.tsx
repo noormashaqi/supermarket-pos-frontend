@@ -22,6 +22,8 @@ import { ReportsPage } from './pages/ReportsPage';
 import { AuthPage } from './pages/AuthPage';
 import { UsersPageWrapper } from './pages/UsersPageWrapper';
 import type { SessionState } from './types/app';
+import { hasPermission } from './utils';
+import { PermissionKeys } from './types/employees';
 
 function AppContent() {
   const location = useLocation();
@@ -46,9 +48,28 @@ function AppContent() {
     window.location.href = '/login';
   };
 
-  const isAdmin = session?.role === 'Admin';
-  const isInventory = session?.role === 'Admin' || session?.role === 'Inventory' || session?.role === 'InventoryEmployee';
-  const isCashier = session?.role === 'Admin' || session?.role === 'Cashier';
+  // Check per-action screen permissions instead of hardcoded roles
+  const canPOS = hasPermission(PermissionKeys.SalesCreate);
+  const canInvoices = hasPermission(PermissionKeys.InvoicesView);
+  const canProducts = hasPermission(PermissionKeys.ProductsView) || hasPermission(PermissionKeys.ProductsManage);
+  const canCategories = hasPermission(PermissionKeys.CategoriesView) || hasPermission(PermissionKeys.CategoriesManage);
+  const canStockHistory = hasPermission(PermissionKeys.StockAdd);
+  const canEmployees = hasPermission(PermissionKeys.EmployeesView) || hasPermission(PermissionKeys.EmployeesManage);
+  const canReports = hasPermission(PermissionKeys.ReportsView);
+  const canDashboard = hasPermission(PermissionKeys.DashboardView);
+
+  // Default redirect path after login
+  const getDefaultRoute = () => {
+    if (canDashboard) return '/dashboard';
+    if (canPOS) return '/pos';
+    if (canInvoices) return '/invoices';
+    if (canProducts) return '/products';
+    if (canCategories) return '/categories';
+    if (canStockHistory) return '/stock-history';
+    if (canEmployees) return '/employees';
+    if (canReports) return '/reports';
+    return '/login';
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased">
@@ -69,9 +90,9 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Navigation Links */}
+            {/* Navigation Links - Per-Action Permission Checked */}
             <nav className="flex space-x-1 overflow-x-auto bg-slate-100 p-1 rounded-xl scrollbar-none items-center">
-              {session && isCashier && (
+              {session && canPOS && (
                 <NavLink
                   to="/pos"
                   className={({ isActive }) =>
@@ -87,7 +108,7 @@ function AppContent() {
                 </NavLink>
               )}
 
-              {session && isCashier && (
+              {session && canInvoices && (
                 <NavLink
                   to="/invoices"
                   className={({ isActive }) =>
@@ -103,7 +124,7 @@ function AppContent() {
                 </NavLink>
               )}
 
-              {session && isInventory && (
+              {session && canProducts && (
                 <NavLink
                   to="/products"
                   className={({ isActive }) =>
@@ -119,7 +140,7 @@ function AppContent() {
                 </NavLink>
               )}
 
-              {session && isInventory && (
+              {session && canCategories && (
                 <NavLink
                   to="/categories"
                   className={({ isActive }) =>
@@ -135,7 +156,7 @@ function AppContent() {
                 </NavLink>
               )}
 
-              {session && isInventory && (
+              {session && canStockHistory && (
                 <NavLink
                   to="/stock-history"
                   className={({ isActive }) =>
@@ -151,7 +172,7 @@ function AppContent() {
                 </NavLink>
               )}
 
-              {session && isAdmin && (
+              {session && canEmployees && (
                 <NavLink
                   to="/employees"
                   className={({ isActive }) =>
@@ -167,7 +188,7 @@ function AppContent() {
                 </NavLink>
               )}
 
-              {session && isAdmin && (
+              {session && canReports && (
                 <NavLink
                   to="/reports"
                   className={({ isActive }) =>
@@ -183,7 +204,7 @@ function AppContent() {
                 </NavLink>
               )}
 
-              {session && isAdmin && (
+              {session && canDashboard && (
                 <NavLink
                   to="/dashboard"
                   className={({ isActive }) =>
@@ -230,43 +251,43 @@ function AppContent() {
       {/* MAIN ROUTE CONTENT */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Routes>
-          <Route path="/" element={<Navigate to={session ? (isAdmin ? "/dashboard" : "/pos") : "/login"} replace />} />
+          <Route path="/" element={<Navigate to={session ? getDefaultRoute() : "/login"} replace />} />
           
           <Route
             path="/pos"
-            element={session && isCashier ? <PosTerminal /> : <Navigate to="/login" replace />}
+            element={session && canPOS ? <PosTerminal /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/invoices"
-            element={session && isCashier ? <InvoicesPage /> : <Navigate to="/login" replace />}
+            element={session && canInvoices ? <InvoicesPage /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/products"
-            element={session && isInventory ? <ProductsPage /> : <Navigate to="/login" replace />}
+            element={session && canProducts ? <ProductsPage /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/categories"
-            element={session && isInventory ? <CategoriesPage /> : <Navigate to="/login" replace />}
+            element={session && canCategories ? <CategoriesPage /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/stock-history"
-            element={session && isInventory ? <StockHistoryPage /> : <Navigate to="/login" replace />}
+            element={session && canStockHistory ? <StockHistoryPage /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/employees"
-            element={session && isAdmin ? <UsersPageWrapper /> : <Navigate to="/login" replace />}
+            element={session && canEmployees ? <UsersPageWrapper /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/reports"
-            element={session && isAdmin ? <ReportsPage /> : <Navigate to="/login" replace />}
+            element={session && canReports ? <ReportsPage /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/dashboard"
-            element={session && isAdmin ? <DashboardPage /> : <Navigate to="/login" replace />}
+            element={session && canDashboard ? <DashboardPage /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/login"
-            element={!session ? <AuthPage /> : <Navigate to={isAdmin ? "/dashboard" : "/pos"} replace />}
+            element={!session ? <AuthPage /> : <Navigate to={getDefaultRoute()} replace />}
           />
           
           <Route path="*" element={<Navigate to="/" replace />} />
