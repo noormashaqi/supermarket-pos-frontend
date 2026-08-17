@@ -5,6 +5,13 @@ import type {
   ExecuteExchangeInput 
 } from '../../types';
 
+export interface ExchangeInvoicePayload {
+  originalInvoiceId: number;
+  returnedItems: Array<{ productId: number; quantity: number }>;
+  newItems: Array<{ productId: number; quantity: number; unitPrice: number }>;
+  reason?: string;
+}
+
 export const returnsService = {
   async executePureReturn(
     input: ExecutePureReturnInput,
@@ -36,39 +43,65 @@ export const returnsService = {
   },
 
   async executeExchange(
-    input: ExecuteExchangeInput,
+    input: ExecuteExchangeInput | ExchangeInvoicePayload,
     employeeName: string = 'Current Employee'
   ): Promise<{ returnRecord: ReturnRecord; newInvoiceId?: string }> {
 
-    // 1) تحديد معرّف الصنف المرتجع (القديم)
-    const oldProductId = Number(
-      input.oldProductId ?? input.productIdToReturn ?? input.productId
-    );
+    const originalInvoiceId = Number((input as any).originalInvoiceId);
+    
+    // 1) Extract returned items matching backend DTO schema
+    let returnedItems: Array<{ productId: number; quantity: number }> = (input as any).returnedItems;
+    let oldProductId = Number((input as any).oldProductId ?? (input as any).productIdToReturn ?? (input as any).productId ?? 1);
+    let quantityReturned = Number((input as any).quantityReturned ?? 1);
 
-    // 2) تجهيز قائمة الأصناف البديلة (NewItems)
-    const newItems = input.newItems && input.newItems.length > 0
-      ? input.newItems.map((item) => ({
-          productId: Number(item.productId),
-          quantity: item.quantity,
-        }))
-      : [
-          {
-            productId: Number(input.replacementProductId),
-            quantity: input.replacementQuantity || 1,
-          },
-        ];
+    if (!returnedItems || returnedItems.length === 0) {
+      returnedItems = [
+        {
+          productId: oldProductId,
+          quantity: quantityReturned,
+        },
+      ];
+    } else {
+      oldProductId = returnedItems[0].productId;
+      quantityReturned = returnedItems[0].quantity;
+    }
 
-    // 3) بناء الـ Payload بنفس أسماء خصائص ExchangeRequestBody في C#
-    const payload = {
-      oldProductId,
-      quantityReturned: input.quantityReturned,
+    // 2) Extract replacement items matching backend DTO schema
+    let rawNewItems: any[] = (input as any).newItems;
+    let newItems: Array<{ productId: number; quantity: number; unitPrice: number }>;
+
+    if (Array.isArray(rawNewItems) && rawNewItems.length > 0) {
+      newItems = rawNewItems.map((item: any) => ({
+        productId: Number(item.productId),
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice || item.price || 0),
+      }));
+    } else {
+      newItems = [
+        {
+          productId: Number((input as any).replacementProductId),
+          quantity: Number((input as any).replacementQuantity || 1),
+          unitPrice: Number((input as any).unitPrice || 0),
+        },
+      ];
+    }
+
+    // 3) Construct payload strictly matching ExchangeInvoicePayload backend DTO schema
+    const payload: ExchangeInvoicePayload = {
+      originalInvoiceId,
+      returnedItems,
       newItems,
-      reason: input.reason || '',
+      reason: (input as any).reason || '',
     };
 
-    const res = await apiClient<any>(`/api/Invoices/${input.originalInvoiceId}/exchange`, {
+    const res = await apiClient<any>(`/api/Invoices/${originalInvoiceId}/exchange`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        // Include legacy fallback fields for maximum backend compatibility
+        oldProductId,
+        quantityReturned,
+      }),
     });
 
     const newInvId = res?.newInvoiceId ? String(res.newInvoiceId) : undefined;
@@ -77,24 +110,24 @@ export const returnsService = {
     return {
       returnRecord: {
         id: String(res?.returnId || res?.id || Date.now()),
-        originalInvoiceId: String(input.originalInvoiceId),
-        originalInvoiceNumber: res?.originalInvoiceNumber || `INV-${input.originalInvoiceId}`,
+        originalInvoiceId: String(originalInvoiceId),
+        originalInvoiceNumber: res?.originalInvoiceNumber || `INV-${originalInvoiceId}`,
         type: 'Exchange',
         productId: String(oldProductId),
         productName: res?.productName || 'Exchanged Product',
-        quantityReturned: input.quantityReturned,
+        quantityReturned,
         newInvoiceId: newInvId,
         newInvoiceNumber: newInvNumber,
         employeeId: '1',
         employeeName,
         createdAt: new Date().toISOString(),
-        reason: input.reason,
+        reason: (input as any).reason,
       },
       newInvoiceId: newInvId,
     };
   },
 
-  async executeExchangeReturn(input: ExecuteExchangeInput, employeeName: string = 'Current Employee') {
+  async executeExchangeReturn(input: ExecuteExchangeInput | ExchangeInvoicePayload, employeeName: string = 'Current Employee') {
     return this.executeExchange(input, employeeName);
   },
 
