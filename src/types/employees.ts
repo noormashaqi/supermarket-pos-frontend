@@ -5,6 +5,8 @@ export const PermissionKeys = {
   InvoicesView: 'invoices.view',
   InvoicesReturn: 'invoices.return',
   InvoicesExchange: 'invoices.exchange',
+  InvoicesOverridePrice: 'invoices.override_price',
+  SalesPriceOverride: 'sales.price_override',
   ProductsView: 'products.view',
   ProductsManage: 'products.manage',
   CategoriesView: 'categories.view',

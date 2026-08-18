@@ -93,6 +93,7 @@ export const invoicesService = {
         items: input.items.map((i) => ({
           productId: Number(i.productId) || i.productId,
           quantity: i.quantity,
+          unitPrice: i.unitPrice !== undefined ? Number(i.unitPrice) : undefined,
         })),
         discountPercentage: input.discountPercentage || 0,
         customerName: input.customerName || 'Walk-in Customer',
