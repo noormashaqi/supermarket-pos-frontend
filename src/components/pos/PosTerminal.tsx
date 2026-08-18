@@ -8,6 +8,8 @@ import {
   ShoppingBag,
   Percent,
   AlertTriangle,
+  Pause,
+  Play,
 } from 'lucide-react';
 import type { Product, Category, Invoice } from '../../types';
 import { productsService } from '../../api/services/productsService';
@@ -15,7 +17,7 @@ import { categoriesService } from '../../api/services/categoriesService';
 import { invoicesService } from '../../api/services/invoicesService';
 import { formatCurrency, getSession } from '../../utils';
 import { PrintInvoiceModal } from '../invoices/PrintInvoiceModal';
-import { ToastContainer, type ToastMessage } from '../common';
+import { ToastContainer, type ToastMessage, Modal } from '../common';
 import { useModal } from '../../hooks';
 
 interface CartItem {
@@ -23,11 +25,24 @@ interface CartItem {
   quantity: number;
 }
 
+interface HeldInvoice {
+  id: string;
+  referenceTag: string;
+  cart: CartItem[];
+  customerName: string;
+  discountPercentage: string;
+  timestamp: string;
+}
+
 export const PosTerminal = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Held Invoices State
+  const [heldInvoices, setHeldInvoices] = useState<HeldInvoice[]>([]);
+  const [isHeldModalOpen, setIsHeldModalOpen] = useState(false);
 
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -61,7 +76,83 @@ export const PosTerminal = () => {
 
   useEffect(() => {
     loadPosData();
+    try {
+      const stored = localStorage.getItem('supermarket_held_invoices');
+      if (stored) {
+        setHeldInvoices(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.error('Error loading held invoices:', err);
+    }
   }, []);
+
+  const handleHoldInvoice = () => {
+    if (cart.length === 0) {
+      addToast('error', 'Cannot hold an empty cart!');
+      return;
+    }
+
+    const tag = window.prompt(
+      'Enter an optional reference tag/note for this paused order:',
+      `Customer ${heldInvoices.length + 1}`
+    );
+    if (tag === null) return; // Cancel clicked
+
+    const referenceTag = tag.trim() || `Customer ${heldInvoices.length + 1}`;
+    const newHeld: HeldInvoice = {
+      id: String(Date.now()),
+      referenceTag,
+      cart,
+      customerName,
+      discountPercentage,
+      timestamp: new Date().toISOString(),
+    };
+
+    const updated = [...heldInvoices, newHeld];
+    setHeldInvoices(updated);
+    localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
+
+    // Clear active cart state
+    setCart([]);
+    setDiscountPercentage('0');
+    setCustomerName('Walk-in Customer');
+
+    addToast('success', `Cart held successfully: "${referenceTag}"`);
+  };
+
+  const handleResumeInvoice = (held: HeldInvoice) => {
+    if (cart.length > 0) {
+      const confirmOverwrite = window.confirm(
+        'There are items in your active register workspace. Resuming this order will overwrite the current cart. Do you want to proceed?'
+      );
+      if (!confirmOverwrite) return;
+    }
+
+    setCart(held.cart);
+    setCustomerName(held.customerName || 'Walk-in Customer');
+    setDiscountPercentage(held.discountPercentage || '0');
+
+    // Remove from heldInvoices
+    const updated = heldInvoices.filter((item) => item.id !== held.id);
+    setHeldInvoices(updated);
+    localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
+
+    setIsHeldModalOpen(false);
+    addToast('success', `Resumed order: "${held.referenceTag}"`);
+  };
+
+  const handleDiscardInvoice = (id: string, tag: string) => {
+    const confirmDiscard = window.confirm(
+      `Are you sure you want to discard the held order "${tag}"? This action cannot be undone.`
+    );
+    if (!confirmDiscard) return;
+
+    const updated = heldInvoices.filter((item) => item.id !== id);
+    setHeldInvoices(updated);
+    localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
+
+    addToast('info', `Discarded held order: "${tag}"`);
+  };
 
   const addToCart = (product: Product) => {
     if (product.quantity <= 0) {
@@ -299,9 +390,23 @@ export const PosTerminal = () => {
             </h2>
             <p className="text-[11px] text-slate-500">Order items breakdown</p>
           </div>
-          <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100">
-            {cart.reduce((s, i) => s + i.quantity, 0)} items
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsHeldModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-xl transition-all cursor-pointer border ${
+                heldInvoices.length > 0
+                  ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                  : 'text-slate-500 bg-slate-50 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Pause className="w-3 h-3" />
+              <span>Held ({heldInvoices.length})</span>
+            </button>
+            <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100">
+              {cart.reduce((s, i) => s + i.quantity, 0)} items
+            </span>
+          </div>
         </div>
 
         {/* Customer Name */}
@@ -435,22 +540,35 @@ export const PosTerminal = () => {
             </div>
           </div>
 
-          {/* Confirm Invoice Button */}
-          <button
-            type="button"
-            onClick={handleCheckout}
-            disabled={cart.length === 0 || isSubmitting}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            {isSubmitting ? (
-              <span>Confirming Sale...</span>
-            ) : (
-              <>
-                <Printer className="w-4 h-4" />
-                <span>CONFIRM SALE & PRINT RECEIPT ({formatCurrency(totalAfterDiscount)})</span>
-              </>
-            )}
-          </button>
+          {/* Action Buttons */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={handleHoldInvoice}
+              disabled={cart.length === 0}
+              className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <Pause className="w-4 h-4" />
+              <span>HOLD POS REGISTER ORDER</span>
+            </button>
+
+            {/* Confirm Invoice Button */}
+            <button
+              type="button"
+              onClick={handleCheckout}
+              disabled={cart.length === 0 || isSubmitting}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              {isSubmitting ? (
+                <span>Confirming Sale...</span>
+              ) : (
+                <>
+                  <Printer className="w-4 h-4" />
+                  <span>CONFIRM SALE & PRINT RECEIPT ({formatCurrency(totalAfterDiscount)})</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -460,6 +578,110 @@ export const PosTerminal = () => {
         onClose={printModal.close}
         invoice={printModal.data}
       />
+
+      {/* Held Orders Modal */}
+      <Modal
+        isOpen={isHeldModalOpen}
+        onClose={() => setIsHeldModalOpen(false)}
+        title="Held POS Orders (الطلبات المعلقة)"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Select a paused cart to resume checkout, or discard it if it is no longer needed.
+          </p>
+          {heldInvoices.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              <ShoppingBag className="w-8 h-8 mx-auto mb-2 text-slate-300 stroke-1" />
+              <p className="text-xs font-semibold">No held orders found</p>
+              <p className="text-[10px] mt-0.5">Use the "Hold Register" button to pause active transactions.</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {heldInvoices.map((held) => {
+                const subtotal = held.cart.reduce(
+                  (sum, item) => sum + item.product.sellingPrice * item.quantity,
+                  0
+                );
+                const discountPct = Math.min(
+                  100,
+                  Math.max(0, Number(held.discountPercentage) || 0)
+                );
+                const discountVal = subtotal * (discountPct / 100);
+                const total = subtotal - discountVal;
+                const itemsCount = held.cart.reduce((sum, item) => sum + item.quantity, 0);
+
+                return (
+                  <div
+                    key={held.id}
+                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="min-w-0 mr-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800 text-xs truncate">
+                          {held.referenceTag}
+                        </span>
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                          {itemsCount} Items
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Saved: {new Date(held.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(held.timestamp).toLocaleDateString()})
+                      </p>
+                      {held.customerName !== 'Walk-in Customer' && (
+                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                          Customer: {held.customerName}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right mr-1">
+                        <p className="text-xs font-bold text-emerald-600">
+                          {formatCurrency(total)}
+                        </p>
+                        {discountPct > 0 && (
+                          <span className="text-[9px] text-amber-600 font-bold block">
+                            {discountPct}% discount
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleResumeInvoice(held)}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer transition-colors shadow-xs"
+                        >
+                          <Play className="w-3 h-3 fill-current" />
+                          <span>Resume</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDiscardInvoice(held.id, held.referenceTag)}
+                          className="flex items-center justify-center p-2 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-lg cursor-pointer transition-colors"
+                          title="Discard Order"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsHeldModalOpen(false)}
+              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
