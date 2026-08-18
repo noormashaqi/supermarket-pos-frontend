@@ -1,6 +1,14 @@
 import { apiClient } from '../client';
 import type { Invoice, CreateInvoiceInput } from '../../types';
 
+const toTrimmedString = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : '';
+
+const toFiniteNumber = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 export const invoicesService = {
   async getInvoices(filters?: { date?: string; employeeId?: string; productId?: string }): Promise<Invoice[]> {
     try {
@@ -120,27 +128,91 @@ export const invoicesService = {
     try {
       const data = await apiClient<any>(`/api/Invoices/${id}/printable`);
       if (data) {
+        const invoiceId = toFiniteNumber(data.invoiceId ?? data.id);
+        const invoiceNumber = toTrimmedString(data.invoiceNumber);
+        const employeeName = toTrimmedString(data.employeeName);
+        const date = toTrimmedString(data.date);
+        const paymentMethod = toTrimmedString(data.paymentMethod);
+        const totalBeforeDiscount = toFiniteNumber(data.totalBeforeDiscount);
+        const discountPercentage = toFiniteNumber(data.discountPercentage);
+        const discountAmount = toFiniteNumber(data.discountAmount);
+        const totalAfterDiscount = toFiniteNumber(data.totalAfterDiscount);
+        const items = Array.isArray(data.items)
+          ? data.items
+              .map((i: any) => {
+                const productId = toFiniteNumber(i.productId);
+                const productName = toTrimmedString(i.productName || i.productNameSnapshot);
+                const unitPrice = toFiniteNumber(i.unitPrice ?? i.unitPriceSnapshot);
+                const quantity = toFiniteNumber(i.quantity);
+                const lineTotal = toFiniteNumber(i.lineTotal);
+
+                if (
+                  productId === null ||
+                  !productName ||
+                  unitPrice === null ||
+                  quantity === null ||
+                  lineTotal === null
+                ) {
+                  return null;
+                }
+
+                return {
+                  productId,
+                  productName,
+                  unitPrice,
+                  quantity,
+                  lineTotal,
+                };
+              })
+              .filter(
+                (
+                  item: {
+                    productId: number;
+                    productName: string;
+                    unitPrice: number;
+                    quantity: number;
+                    lineTotal: number;
+                  } | null
+                ): item is {
+                  productId: number;
+                  productName: string;
+                  unitPrice: number;
+                  quantity: number;
+                  lineTotal: number;
+                } => item !== null
+              )
+          : [];
+        const htmlReceipt = typeof data.htmlReceipt === 'string' ? data.htmlReceipt : '';
+
+        if (
+          invoiceId === null ||
+          !invoiceNumber ||
+          !employeeName ||
+          !date ||
+          !paymentMethod ||
+          totalBeforeDiscount === null ||
+          discountPercentage === null ||
+          discountAmount === null ||
+          totalAfterDiscount === null ||
+          items.length === 0
+        ) {
+          console.error('Printable invoice response is incomplete:', data);
+          return null;
+        }
+
         return {
-          invoiceId: Number(data.invoiceId || data.id),
-          invoiceNumber: String(data.invoiceNumber || ''),
-          employeeName: String(data.employeeName || ''),
-          date: String(data.date || ''),
-          paymentMethod: String(data.paymentMethod || 'Cash'),
-          totalBeforeDiscount: Number(data.totalBeforeDiscount || 0),
-          discountPercentage: Number(data.discountPercentage || 0),
-          discountAmount: Number(data.discountAmount || 0),
-          totalAfterDiscount: Number(data.totalAfterDiscount || 0),
+          invoiceId,
+          invoiceNumber,
+          employeeName,
+          date,
+          paymentMethod,
+          totalBeforeDiscount,
+          discountPercentage,
+          discountAmount,
+          totalAfterDiscount,
           hasReturn: Boolean(data.hasReturn),
-          items: Array.isArray(data.items)
-            ? data.items.map((i: any) => ({
-                productId: Number(i.productId),
-                productName: String(i.productName || i.productNameSnapshot || ''),
-                unitPrice: Number(i.unitPrice || i.unitPriceSnapshot || 0),
-                quantity: Number(i.quantity || 0),
-                lineTotal: Number(i.lineTotal || 0),
-              }))
-            : [],
-          htmlReceipt: String(data.htmlReceipt || ''),
+          items,
+          htmlReceipt,
         };
       }
     } catch (err) {
