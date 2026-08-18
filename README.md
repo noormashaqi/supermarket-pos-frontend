@@ -1,32 +1,72 @@
-# React + TypeScript + Vite
+# 🛒 واجهة نظام نقاط البيع وإدارة السوبرماركت (Supermarket POS System) - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+واجهة مستخدم عصرية، تفاعلية وسريعة جداً لبناء وإدارة الكاشير ونقاط البيع بالسوبرماركت. مبنية باستخدام **React 18**، **TypeScript**، و **TailwindCSS**.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🛠️ التقنيات المستخدمة (Tech Stack)
 
-## React Compiler
+- **المكتبة الأساسية**: React 18+ (Vite)
+- **لغة البرمجة**: TypeScript
+- **التنسيق والأنماط**: TailwindCSS
+- **الأيقونات**: Lucide React Icons
+- **إدارة التوجيه**: React Router DOM (v6)
+- **الطباعة المعزولة**: Custom Printing Engine (Iframe Print Isolation)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the Oxlint configuration
+## ✨ المميزات الرئيسية (Key Features)
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+### 🛒 1. شاشة الكاشير والمبيعات (POS Terminal)
+- **تصفح وبحث سريع**: فلترة المنتجات حسب التصنيف أو البحث الفوري بالاسم والباركوود.
+- **تعديل السعر المباشر (Price Override)**: زر تعديل السعر المباشر للقطع المتضررة أو للزبائن الدائمين، مع نافذة اعتمادات المشرف (**Supervisor Authorization Modal**) في حال عدم وجود الصلاحية لدى الكاشير.
+- **تعليق واستئناف السلات (Hold/Resume Order)**: حفظ الطلبات المعلقة مؤقتاً باسم أو وسم واستعادتها أو إلغائها بسهولة.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+### 🖨️ 2. الطباعة الاحترافية للفواتير (Thermal & A4 Printing)
+- معاينة الفاتورة الحرارية (80mm) وفاتورة A4 القياسية.
+- نظام طباعة معزول عبر `iframe` مخصص يضمن طباعة الفاتورة فقط بدون ظهور عناصر الشاشة أو المودال أو شريط التصفح.
+
+### ↩️ 3. الإرجاع والتبديل (Returns & Exchange Modal)
+- واجهة مخصصة لاختيار المنتجات المراد إرجاعها واختيار البدائل وتحديد الفوارق المالية بوضوح.
+
+### 👥 4. إدارة الموظفين والصلاحيات (Employees & Permissions)
+- التحكم بدقة في الصلاحيات الظاهرة لكل كاشير/مشرف بناءً على الـ JWT Claims المسجلة.
+
+### 📊 5. لوحة التحليلات والتقارير (Dashboard & Reports)
+- رسوم بيانية ومؤشرات أداء يومية وشهرية.
+- تقارير تفصيلية عن المبيعات، المنتجات الأكثر حركة، وأداء الكاشيرية.
+
+---
+
+## 🚀 طريقة التشغيل (Setup & Execution)
+
+### المتطلبات:
+- **Node.js** (v18.0 أو أحدث)
+- **npm** أو **yarn**
+
+### الخطوات:
+1. تثبيت الحزم والمكتبات:
+```bash
+npm install
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+2. ضبط ملف البيئة `.env`:
+```env
+VITE_API_BASE_URL=http://localhost:5000
+```
+
+3. تشغيل خادم التطوير:
+```bash
+npm run dev
+```
+
+4. بناء النسخة الإنتاجية (Production Build):
+```bash
+npm run build
+```
+
+---
+
+## 📝 ترخيص المشروع (License)
+
+تم تطوير الواجهة لصالح نظام نقاط البيع بالسوبرماركت. جميع الحقوق محفوظة © 2026.
