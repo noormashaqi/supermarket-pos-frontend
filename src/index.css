@@ -1,53 +1,65 @@
-:root {
-  font-family: 'Space Grotesk', sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color: #173429;
-  background:
-    radial-gradient(circle at top, rgba(255, 204, 85, 0.22), transparent 24%),
-    linear-gradient(180deg, #f7f2df 0%, #eef7ef 48%, #f5efe1 100%);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
-* {
-  box-sizing: border-box;
+/* Custom Soft Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-html {
-  scroll-behavior: smooth;
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(17, 38, 31, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(17, 38, 31, 0.025) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent);
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-a {
-  color: inherit;
+/* Toast Slide-In Animation */
+@keyframes slideIn {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-button,
-input,
-select {
-  font: inherit;
+.animate-slide-in {
+  animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-#root {
-  min-height: 100vh;
+/* Print thermal receipt styling */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #thermal-receipt, #thermal-receipt * {
+    visibility: visible;
+  }
+  #thermal-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 10px;
+    background: white;
+    color: black;
+  }
 }
