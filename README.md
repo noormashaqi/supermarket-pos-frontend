@@ -1,159 +1,330 @@
-# 🛒 نظام إدارة السوبرماركت ونقاط البيع (Supermarket POS System - Frontend)
+# 🛒 Supermarket POS System - Frontend
 
-واجهة مستخدم احترافية، متميزة، فائقة السرعة، ومصممة خصيصاً لإدارة عمليات البيع والكاشير والمخزون في السوبرماركت. مبنية بأحدث معايير الويب باستخدام **React 18**، **TypeScript**، و **TailwindCSS**.
+A frontend application for managing sales, cashier operations, products, categories, inventory, invoices, employees, and reports in a supermarket environment.
 
----
-
-## 🌟 نظرة عامة (Overview)
-
-تم بناء التطبيق لتقديم تجربة مستخدم سلسة وبسيطة جداً لموظفي الكاشير والمشرقين، مع حماية عالية للصلاحيات وتتبع دقيق للمبيعات والمخزون في الوقت الفعلي:
-- **إصدار الفواتير بسرعة فائقة**: دعم كامل للعمل بدون باركود (البحث الفوري بالاسم أو الفئة).
-- **التتبع الدقيق للمخزون**: خصم الكميات تلقائياً عند التأكيد ودعم وحدات البيع (حبة / باكيج).
-- **إدارة الصلاحيات لكل عملية (Permission per Action)**: دعم فحص الصلاحيات الدقيقة من خلال الـ JWT Claims.
-- **الطباعة العزلية والحرارية (80mm & A4)**: طباعة الفواتير على الطابعات الحرارية أو العادية بمعاينة فورية.
-- **نظام الإرجاع والتبديل المدمج**: إدارة المرتجعات أو الاستبدال بمنتجات أخرى مع إصدار فواتير جديدة وتحديث المخزون تلقائياً.
+The application is designed to provide a simple and efficient experience for cashiers and administrators, with role-based access and permission-based control over system features.
 
 ---
 
-## 🛠️ التقنيات المستخدمة (Tech Stack)
+## Overview
 
-| التقنية | الاستخدام / الوصف |
-|---|---|
-| **React 18** | المكتبة الأساسية لبناء واجهة المستخدم والتفاعلية |
-| **TypeScript** | ضمان دقة الأنماط (Type Safety) واستقرار الكود |
-| **Vite** | أداة التجميع وتطوير التطبيق بنشر فائق السرعة |
-| **TailwindCSS** | بناء تصميم عصري وأنيق مع متطلبات الـ Design System |
-| **Lucide React** | أيقونات عصرية وخفيفة للواجهات |
-| **React Router DOM v6** | إدارة المسارات والحماية والتنقل بين الشاشات |
+The system provides the following main capabilities:
+
+* Fast POS checkout without barcode scanners.
+* Product search and category filtering.
+* Automatic stock updates after confirmed sales.
+* Product management and category management.
+* Inventory management and stock history.
+* Invoice management and printing.
+* Return and exchange operations.
+* Employee management and attendance tracking.
+* Permission-based access to system screens and actions.
+* Dashboard and sales reports.
 
 ---
 
-## 📁 هيكلية المشروع (Project Structure)
+## Tech Stack
+
+* **React 18** - Frontend library
+* **TypeScript** - Type-safe development
+* **Vite** - Development server and build tool
+* **TailwindCSS** - Styling and UI design
+* **Lucide React** - Icons
+* **React Router DOM v6** - Routing and navigation
+* **REST API** - Communication with the ASP.NET Core backend
+
+---
+
+## Project Structure
 
 ```text
 supermarket-pos-frontend/
 ├── src/
-│   ├── api/                  # خدمات الربط مع الـ Backend (ASP.NET Core REST APIs)
-│   │   ├── client.ts         # عميل Fetch الموحد وتضمين Bearer Token
-│   │   └── services/         # خدمات الأقسام (Invoices, Products, Employees, Reports, etc.)
-│   ├── components/           # المكونات التفاعلية المجمعة
-│   │   ├── common/           # عناصر الواجهة الموحدة (Table, Modal, Badge, Toast, etc.)
-│   │   ├── invoices/         # مكونات طباعة وإرجاع الفواتير (PrintInvoiceModal, ReturnExchangeModal)
-│   │   ├── pos/              # مكونات الكاشير (PosTerminal, SupervisorOverrideModal)
-│   │   └── products/         # مكونات المنتجات والمخزون (AddStockModal)
-│   ├── hooks/                # الخطاطيف المخصصة (useModal, useToast)
-│   ├── pages/                # شاشات التطبيق الرئيسية
-│   │   ├── AuthPage.tsx      # تسجيل الدخول وإنهاء الجلسة
-│   │   ├── DashboardPage.tsx # لوحة التحكم ومؤشرات الأداء
-│   │   ├── InvoicesPage.tsx  # سجل الفواتير والمراجعة
-│   │   ├── ProductsPage.tsx  # إدارة كتالوج المنتجات
-│   │   ├── CategoriesPage.tsx# إدارة الفئات
-│   │   ├── ReportsPage.tsx   # تقارير المبيعات والتحليلات
-│   │   ├── StockHistoryPage.tsx # سجل تتبع الإضافات للمخزون
-│   │   └── UsersPageWrapper.tsx # إدارة الموظفين وسجل الشفتات
-│   ├── types/                # واجهات الأنماط (TypeScript Interfaces & Types)
-│   ├── utils/                # الأدوات المساعدة (formatCurrency, formatDate, hasPermission, etc.)
-│   ├── App.tsx               # الشجرة الرئيسية والتنقل بحماية الصلاحيات
-│   └── main.tsx              # نقطة الانطلاق الرئيسية
-├── public/                   # الملفات الإستاتيكية
-├── index.html                # القالب الرئيسي
-├── package.json              # حزم وتبيعات المشروع
-├── tsconfig.json             # إعدادات TypeScript
-└── vite.config.ts            # إعدادات Vite
+│   ├── api/
+│   │   ├── client.ts
+│   │   └── services/
+│   │
+│   ├── components/
+│   │   ├── common/
+│   │   ├── invoices/
+│   │   ├── pos/
+│   │   └── products/
+│   │
+│   ├── hooks/
+│   ├── pages/
+│   │   ├── AuthPage.tsx
+│   │   ├── DashboardPage.tsx
+│   │   ├── InvoicesPage.tsx
+│   │   ├── ProductsPage.tsx
+│   │   ├── CategoriesPage.tsx
+│   │   ├── ReportsPage.tsx
+│   │   ├── StockHistoryPage.tsx
+│   │   └── UsersPageWrapper.tsx
+│   │
+│   ├── types/
+│   ├── utils/
+│   ├── App.tsx
+│   └── main.tsx
+│
+├── public/
+├── index.html
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
 ```
 
 ---
 
-## ✨ المميزات الرئيسية (Detailed Features)
+## Main Features
 
-### 🛒 1. نقطة البيع والكاشير (POS Checkout Terminal)
-- **البحث والتصفية السريعة**: تصفح المنتجات عبر الفئات أو البحث اللحظي بالاسم.
-- **تحديد الكميات والوحدات**: دعم البيع بالحبة (Piece) أو الباكيج (Package) مع منع تجاوز الكميات المتاحة في المخزون.
-- **الخصم بنسبة مئوية (%)**: إضافة خصم كنسبة مئوية على مستوى الفاتورة كاملة.
-- **الحفظ التلقائي للأسعار (Price Snapshot)**: حفظ أسعار البيع وقت الفاتورة لضمان عدم تأثر الفواتير القديمة بأي تعديل مستقبلي للأسعار.
+### 1. POS Checkout
 
-### 🏷️ 2. تعديل الأسعار وموافقة المشرف (Price Override & Supervisor Authorization)
-- **التعديل المباشر للمصرح لهم**: في حال امتلاك الكاشير لصلاحية `invoices.override_price` أو `sales.price_override` (أو Admin)، يمكنه تعديل سعر الوحدة مباشرة في السلة مع تحديث فوري للإجمالي.
-- **نافذة اعتماد المشرف (Supervisor Override Modal)**: في حال عدم امتلاك الصلاحية، يظهر نموذج يطلب اسم مستخدم وكلمة مرور مدير/مشرف لتفويض عملية تعديل السعر واعتمادها.
-- **إرسال السعر المعدل**: إرسال قيمة `unitPrice` المعدلة بطلب `POST /api/Invoices` بدقة.
+The POS screen allows cashiers to:
 
-### ⏸️ 3. تعليق واستئناف السلات (Hold & Resume Cart Orders)
-- **تعليق الطلب النشط**: حفظ السلة الحالية مؤقتاً مع إضافة وسم/اسم مرجعي (مثل "Customer A").
-- **الحفظ الدائم (Persistence)**: احتفاظ الطلبات المعلقة في الـ `localStorage` لتظل متوفرة حتى بعد إعادة تحميل الصفحة (F5).
-- **استئناف أو إلغاء الطلب**: إمكانية استعادة سلة معلقة كاملة بمنتجاتها وأسعارها وخصوماتها أو إزالته نهائياً.
+* Search for products by name.
+* Filter products by category.
+* Select quantities.
+* Sell products by Piece or Package.
+* Apply a percentage discount to the invoice.
+* Check available stock before completing a sale.
+* Create invoices through the backend API.
 
-### 📑 4. سجل الفواتير والطباعة (Invoices & Thermal Receipts)
-- **التحميل الذكي والتفصيلي (Lazy Loading)**: جلب القائمة التجميعية بسرعة، واستدعاء التفاصيل الكاملة (`getInvoiceById`) عند اختيار أي فاتورة للمعاينة أو الطباعة.
-- **إيصال حراري (80mm) وفاتورة A4**: دعم خيارين للطباعة المعزولة عبر `iframe` مخصص يضمن طباعة الفاتورة فقط بدون عناصر الواجهة.
+### 2. Product Management
 
-### ↩️ 5. الإرجاع والتبديل المتقدم (Pure Return & Product Exchange Engine)
-- **إرجاع فقط (Pure Return)**: إعادة الكمية المرتجعة للمخزون دون إصدار فاتورة جديدة، وتحديث حالة الفاتورة الأصلية (`HasReturn = true`).
-- **استبدال منتج (Exchange)**: إرجاع المنتج القديم للمخزون وتوليد فاتورة بيع جديدة منفصلة للمنتج البديل، مع مطابقة بنية الـ DTO المعتمدة في السيرفر (`ExchangeInvoicePayload`).
+The product management section supports:
 
-### 👥 6. إدارة الموظفين والشفتات (Employee Directory & Shift Attendance)
-- **إضافة موظف مع الدور (`GET /api/Roles`)**: اختيار الدور الوظيفي (Admin, Cashier, InventoryEmployee) وإرسال `roleId` ضمن طلب الإنشاء.
-- **سجل حضور الشفتات (Shift Attendance History)**: تسجيل وقت دخول وخروج كل موظف تلقائياً واستعراض السجل بالكامل.
-- **تعطيل الحساب (Deactivate)**: إيقاف إمكانية دخول الموظف مع الحفاظ التام على بياناته التاريخية وفواتيره.
+* Viewing products.
+* Filtering products.
+* Creating products.
+* Updating product information.
+* Deactivating products.
+* Managing selling prices and units.
+* Viewing current stock quantities.
 
-### 📊 7. لوحة التحكم والتقارير (Dashboard & Analytics Reports)
-- **مؤشرات الأداء اليومية**: المبيعات الصافية، عدد الفواتير، والأصناف التي اقتربت من النفاد.
-- **عداد نقص المخزون (Low Stock Alert Counter)**: حساب دقيق ومباشر للمنتجات المستحقة للتزويد (`quantity <= minStockLevel`).
-- **تقارير تفصيلية**: تقارير مبيعات حسب التاريخ، حسب أداء الموظف، وحسب حركة الأصناف والأرباح.
+### 3. Category Management
+
+Users with the required permissions can:
+
+* View categories.
+* Create new categories.
+* Manage category-related data.
+
+### 4. Stock Management
+
+The inventory section provides:
+
+* Add Stock operations.
+* Stock quantity updates.
+* Stock history.
+* Employee information for stock additions.
+* Low-stock products.
+* Out-of-stock products.
+* Remaining stock information.
+
+### 5. Invoices
+
+The invoice section provides:
+
+* Invoice listing.
+* Invoice details.
+* Product and quantity information.
+* Invoice totals and discounts.
+* Cashier information.
+* Invoice date and time.
+* Invoice printing.
+
+Invoice details are loaded when an invoice is selected to keep the initial invoice list lightweight.
+
+### 6. Invoice Printing
+
+The application supports:
+
+* 80mm thermal receipt printing.
+* A4 invoice printing.
+* Invoice number.
+* Product name, quantity, and unit price.
+* Discount and final total.
+* Cashier name.
+* Invoice date and time.
+
+Printing is handled separately from the main application interface so only the invoice content is printed.
+
+### 7. Returns and Exchanges
+
+The system supports two operations:
+
+**Return**
+
+* Returns the selected quantity to stock.
+* Keeps the original invoice.
+* Records the return operation.
+
+**Exchange**
+
+* Returns the original product quantity to stock.
+* Allows the cashier to select a replacement product.
+* Creates a new invoice for the replacement product.
+
+### 8. Employee Management
+
+The employee section supports:
+
+* Adding employees.
+* Assigning roles.
+* Managing permissions.
+* Deactivating employees.
+* Viewing attendance and shift history.
+
+Employee data and historical records remain available after an account is deactivated.
+
+### 9. Hold and Resume Cart
+
+Cashiers can temporarily save an active cart and continue it later.
+
+Held carts are stored in `localStorage`, allowing them to remain available after refreshing the page.
+
+### 10. Dashboard and Reports
+
+The application provides dashboard and reporting features for authorized users, including:
+
+* Daily sales information.
+* Invoice counts.
+* Low-stock information.
+* Sales reports.
+* Employee-related reports.
+* Product-related reports.
 
 ---
 
-## 🚀 دليل التشغيل والإعداد المحلي (Setup Guide)
+## Permission System
 
-### المتطلبات الأساسية:
-- **Node.js** (إصدار `v18.0.0` أو أحدث)
-- **npm** (إصدار `v9.0.0` أو أحدث)
+Access to application screens and actions is controlled through permissions provided by the authenticated user's JWT.
 
-### الخطوات:
+Examples:
 
-1. **استنساخ المستودع (Clone Repository)**:
-   ```bash
-   git clone https://github.com/noormashaqi/supermarket-pos-frontend.git
-   cd supermarket-pos-frontend
-   ```
+| Permission                | Access                         |
+| ------------------------- | ------------------------------ |
+| `sales.create`            | POS                            |
+| `invoices.view`           | Invoice list and details       |
+| `invoices.return`         | Return operations              |
+| `invoices.exchange`       | Exchange operations            |
+| `invoices.override_price` | Price override                 |
+| `products.view`           | Product management             |
+| `products.manage`         | Product management operations  |
+| `categories.view`         | Category list                  |
+| `categories.manage`       | Category management            |
+| `products.stock_add`      | Add stock                      |
+| `employees.view`          | Employee management            |
+| `employees.manage`        | Employee management operations |
+| `reports.view`            | Reports                        |
+| `dashboard.view`          | Dashboard                      |
 
-2. **تثبيت حزم التبعيات (Install Dependencies)**:
-   ```bash
-   npm install
-   ```
-
-3. **إعداد متغيرات البيئة (`.env`)**:
-   قم بإنشاء ملف `.env` في المجلد الرئيسي وضبط عنوان الـ Backend API:
-   ```env
-   VITE_API_BASE_URL=http://localhost:5206
-   ```
-
-4. **تشغيل خادم التطوير (Run Development Server)**:
-   ```bash
-   npm run dev
-   ```
-   سيتم فتح التطبيق محلياً على العنوان: `http://localhost:5173`
-
-5. **فحص التجميع والبناء الإنتاجي (Production Build Check)**:
-   ```bash
-   npm run build
-   ```
+The navigation and protected routes use these permissions to determine which screens and actions are available to the current user.
 
 ---
 
-## 🔐 فحص الصلاحيات والشاشات (Permissions Mapping)
+## API Integration
 
-يعتمد التطبيق على مطابقة الصلاحيات القادمة من الـ JWT Token:
+The frontend communicates with the ASP.NET Core backend through REST APIs.
 
-| مفتاح الصلاحية (Permission Key) | الشاشة / العملية المسموحة |
-|---|---|
-| `sales.create` | شاشة البيع والكاشير (`/pos`) |
-| `invoices.view` | سجل الفواتير والمراجعة (`/invoices`) |
-| `invoices.return` / `invoices.exchange` | تنفيذ عمليات الإرجاع والتبديل |
-| `invoices.override_price` / `sales.price_override` | تعديل سعر الوحدة المباشر بالسلة |
-| `products.view` / `products.manage` | إدارة كتالوج المنتجات (`/products`) |
-| `categories.view` / `categories.manage` | إدارة الفئات (`/categories`) |
-| `products.stock_add` | إضافة رصيد مخزون وسجل التتبع (`/stock-history`) |
-| `employees.view` / `employees.manage` | إدارة الموظفين والشفتات (`/employees`) |
-| `reports.view` | تقارير المبيعات والتحليلات (`/reports`) |
-| `dashboard.view` | لوحة التحكم ومؤشرات الأداء (`/dashboard`) |
-.
+A shared API client is used to:
+
+* Send requests to the backend.
+* Attach the authenticated user's Bearer Token.
+* Handle API responses.
+* Keep API communication consistent across the application.
+
+---
+
+## Setup
+
+### Requirements
+
+* Node.js `18.0.0` or later
+* npm `9.0.0` or later
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/noormashaqi/supermarket-pos-frontend.git
+cd supermarket-pos-frontend
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure the environment
+
+Create a `.env` file in the project root:
+
+```env
+VITE_API_BASE_URL=http://localhost:5206
+```
+
+Update the URL if the backend is running on a different address or port.
+
+### 4. Run the application
+
+```bash
+npm run dev
+```
+
+The application will be available at:
+
+```text
+http://localhost:5173
+```
+
+### 5. Build the project
+
+```bash
+npm run build
+```
+
+---
+
+## Development
+
+The project follows a modular structure where:
+
+* `pages` contains the main application screens.
+* `components` contains reusable UI components.
+* `api` contains backend communication.
+* `hooks` contains reusable React hooks.
+* `types` contains TypeScript types and interfaces.
+* `utils` contains shared helper functions.
+
+This structure keeps the application organized and makes it easier to add new features as the project grows.
+
+---
+
+## Backend
+
+The frontend is designed to work with an **ASP.NET Core Web API** backend responsible for authentication, permissions, products, categories, inventory, invoices, employees, returns, and reports.
+
+Make sure the backend is running before starting the frontend application.
+
+---
+
+## Project Status
+
+The frontend currently includes the main interfaces for:
+
+* Categories
+* Products
+* Stock Management
+* Stock History
+* Low Stock
+* Out of Stock
+* POS
+* Invoices
+* Employees
+* Reports
+* Dashboard
+* Returns and Exchanges
+* Invoice Printing
+
+Further improvements and additional features will be added as development continues.
