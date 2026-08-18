@@ -156,9 +156,4 @@ supermarket-pos-frontend/
 | `employees.view` / `employees.manage` | إدارة الموظفين والشفتات (`/employees`) |
 | `reports.view` | تقارير المبيعات والتحليلات (`/reports`) |
 | `dashboard.view` | لوحة التحكم ومؤشرات الأداء (`/dashboard`) |
-
----
-
-## 📝 الترخيص والتطوير (License)
-
-تم تطوير هذه الواجهة لصالح نظام إدارة السوبرماركت ونقاط البيع. جميع الحقوق محفوظة © 2026.
+.
