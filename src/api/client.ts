@@ -11,6 +11,11 @@ export async function apiClient<T>(
     ...(options.headers as Record<string, string>),
   };
 
+  const token = getStoredToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const config: RequestInit = {
     ...options,
     headers,

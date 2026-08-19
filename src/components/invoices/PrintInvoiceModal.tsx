@@ -23,6 +23,9 @@ export const PrintInvoiceModal = ({
     window.print();
   };
 
+  const isDebt = invoice.paymentMethod === 'debt';
+  const paymentLabel = isDebt ? 'DEBT / UNPAID' : 'CASH';
+
   return (
     <Modal
       isOpen={isOpen}
@@ -95,7 +98,15 @@ export const PrintInvoiceModal = ({
                 </div>
                 <div className="flex justify-between">
                   <span>CUSTOMER:</span>
-                  <span>{invoice.customerName || 'Walk-in'}</span>
+                  <span>{isDebt && invoice.debtCustomerNickname
+                    ? invoice.debtCustomerNickname
+                    : invoice.customerName || 'Walk-in'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>PAYMENT:</span>
+                  <span className={`font-bold ${isDebt ? 'text-amber-700' : ''}`}>
+                    {paymentLabel}
+                  </span>
                 </div>
               </div>
 
@@ -136,14 +147,38 @@ export const PrintInvoiceModal = ({
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-extrabold border-t border-slate-400 pt-1 mt-1">
-                  <span>TOTAL DUE (CASH):</span>
+                  <span>{isDebt ? 'TOTAL DUE (DEBT):' : 'TOTAL DUE (CASH):'}</span>
                   <span>{formatCurrency(invoice.totalAfterDiscount)}</span>
                 </div>
               </div>
 
+              {/* Debt-specific section */}
+              {isDebt && (
+                <div className="space-y-1 text-[11px] border-b border-dashed pb-3 mb-3 border-slate-400 bg-amber-50/50 -mx-1 px-1 py-1 rounded">
+                  <div className="flex justify-between font-bold text-amber-800">
+                    <span>PAYMENT METHOD:</span>
+                    <span>DEBT / UNPAID</span>
+                  </div>
+                  {invoice.debtCustomerNickname && (
+                    <div className="flex justify-between text-amber-700">
+                      <span>DEBTOR NAME:</span>
+                      <span className="font-bold">{invoice.debtCustomerNickname}</span>
+                    </div>
+                  )}
+                  {invoice.remainingDebtBalance !== undefined && (
+                    <div className="flex justify-between text-rose-700 font-bold">
+                      <span>REMAINING BALANCE:</span>
+                      <span>{formatCurrency(invoice.remainingDebtBalance)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Footer */}
               <div className="text-center space-y-1 text-[10px] text-slate-600 pt-1">
-                <p className="font-semibold">PAYMENT: CASH ONLY</p>
+                <p className="font-semibold">
+                  {isDebt ? 'PAYMENT: DEBT / NOTEBOOK (دين)' : 'PAYMENT: CASH ONLY'}
+                </p>
                 <p className="italic">Thank you for shopping with us!</p>
               </div>
             </div>
@@ -164,12 +199,28 @@ export const PrintInvoiceModal = ({
               <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-lg">
                 <div>
                   <p className="font-bold text-slate-500">Customer:</p>
-                  <p className="font-semibold text-slate-800">{invoice.customerName || 'Walk-in Customer'}</p>
+                  <p className="font-semibold text-slate-800">
+                    {isDebt && invoice.debtCustomerNickname
+                      ? invoice.debtCustomerNickname
+                      : invoice.customerName || 'Walk-in Customer'}
+                  </p>
                 </div>
                 <div>
                   <p className="font-bold text-slate-500">Issued By:</p>
                   <p className="font-semibold text-slate-800">Cashier: {invoice.employeeName}</p>
                 </div>
+                <div>
+                  <p className="font-bold text-slate-500">Payment Method:</p>
+                  <p className={`font-bold ${isDebt ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {isDebt ? '📓 DEBT / UNPAID (دين)' : '💵 CASH'}
+                  </p>
+                </div>
+                {isDebt && invoice.debtCustomerNickname && (
+                  <div>
+                    <p className="font-bold text-slate-500">Debtor Nickname:</p>
+                    <p className="font-bold text-amber-800">{invoice.debtCustomerNickname}</p>
+                  </div>
+                )}
               </div>
 
               <table className="w-full text-left text-xs border border-slate-200">
@@ -196,7 +247,7 @@ export const PrintInvoiceModal = ({
               </table>
 
               <div className="flex justify-end">
-                <div className="w-64 space-y-2 text-xs">
+                <div className="w-72 space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Total Before Discount:</span>
                     <span className="font-semibold">{formatCurrency(invoice.totalBeforeDiscount)}</span>
@@ -208,9 +259,19 @@ export const PrintInvoiceModal = ({
                     </div>
                   )}
                   <div className="flex justify-between text-base font-bold border-t pt-2 text-slate-900">
-                    <span>Total Paid (Cash):</span>
-                    <span className="text-emerald-600">{formatCurrency(invoice.totalAfterDiscount)}</span>
+                    <span>{isDebt ? 'Total Due (Debt):' : 'Total Paid (Cash):'}</span>
+                    <span className={isDebt ? 'text-amber-600' : 'text-emerald-600'}>
+                      {formatCurrency(invoice.totalAfterDiscount)}
+                    </span>
                   </div>
+
+                  {/* Debt remaining balance */}
+                  {isDebt && invoice.remainingDebtBalance !== undefined && (
+                    <div className="flex justify-between text-sm font-bold text-rose-700 bg-rose-50 px-2 py-1.5 rounded-lg border border-rose-200 mt-1">
+                      <span>Updated Remaining Balance:</span>
+                      <span>{formatCurrency(invoice.remainingDebtBalance)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

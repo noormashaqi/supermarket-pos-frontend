@@ -1,6 +1,7 @@
 import { apiClient } from '../client';
 import type { Invoice, CreateInvoiceInput } from '../../types';
 import { productsService } from './productsService';
+import { debtService } from './debtService';
 
 let mockInvoices: Invoice[] = [
   {
@@ -33,6 +34,7 @@ let mockInvoices: Invoice[] = [
     hasReturn: false,
     isFullyReturned: false,
     createdAt: '2026-08-11T16:45:00Z',
+    paymentMethod: 'cash',
   },
   {
     id: '1002',
@@ -56,6 +58,7 @@ let mockInvoices: Invoice[] = [
     hasReturn: false,
     isFullyReturned: false,
     createdAt: '2026-08-11T17:10:00Z',
+    paymentMethod: 'cash',
   },
 ];
 
@@ -86,6 +89,10 @@ export const invoicesService = {
           hasReturn: Boolean(inv.hasReturn),
           isFullyReturned: Boolean(inv.isFullyReturned),
           createdAt: inv.createdAt || new Date().toISOString(),
+          paymentMethod: inv.paymentMethod || 'cash',
+          debtCustomerId: inv.debtCustomerId,
+          debtCustomerNickname: inv.debtCustomerNickname,
+          remainingDebtBalance: inv.remainingDebtBalance,
         }));
       }
     } catch {
@@ -120,6 +127,10 @@ export const invoicesService = {
           hasReturn: Boolean(inv.hasReturn),
           isFullyReturned: Boolean(inv.isFullyReturned),
           createdAt: inv.createdAt || new Date().toISOString(),
+          paymentMethod: inv.paymentMethod || 'cash',
+          debtCustomerId: inv.debtCustomerId,
+          debtCustomerNickname: inv.debtCustomerNickname,
+          remainingDebtBalance: inv.remainingDebtBalance,
         };
       }
     } catch {
@@ -180,6 +191,10 @@ export const invoicesService = {
           hasReturn: false,
           isFullyReturned: false,
           createdAt: response.createdAt || new Date().toISOString(),
+          paymentMethod: input.paymentMethod || 'cash',
+          debtCustomerId: input.debtCustomerId,
+          debtCustomerNickname: response.debtCustomerNickname,
+          remainingDebtBalance: response.remainingDebtBalance,
         };
       }
     } catch {
@@ -194,8 +209,21 @@ export const invoicesService = {
       }
     }
 
+    const paymentMethod = input.paymentMethod || 'cash';
+    const invoiceId = String(Date.now());
+
+    // If debt sale, update customer's outstanding balance
+    let debtCustomerNickname: string | undefined;
+    let remainingDebtBalance: number | undefined;
+    if (paymentMethod === 'debt' && input.debtCustomerId) {
+      debtService.addDebtToCustomer(input.debtCustomerId, invoiceId, totalAfterDiscount);
+      const customer = await debtService.getCustomerById(input.debtCustomerId);
+      debtCustomerNickname = customer?.nickname;
+      remainingDebtBalance = customer?.totalOutstanding;
+    }
+
     const newInvoice: Invoice = {
-      id: String(Date.now()),
+      id: invoiceId,
       invoiceNumber: `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`,
       employeeId: 'emp-1',
       employeeName,
@@ -207,6 +235,10 @@ export const invoicesService = {
       hasReturn: false,
       isFullyReturned: false,
       createdAt: new Date().toISOString(),
+      paymentMethod,
+      debtCustomerId: input.debtCustomerId,
+      debtCustomerNickname,
+      remainingDebtBalance,
     };
 
     mockInvoices.unshift(newInvoice);

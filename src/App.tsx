@@ -7,6 +7,7 @@ import {
   Tags,
   History,
   Users,
+  BookOpen,
 } from 'lucide-react';
 import { PosTerminal } from './components/pos/PosTerminal';
 import { ProductsPage } from './pages/ProductsPage';
@@ -15,6 +16,7 @@ import { StockHistoryPage } from './pages/StockHistoryPage';
 import { PrintingPage } from './pages/PrintingPage';
 import { AuthPage } from './pages/AuthPage';
 import { EmployeesPage } from './pages/EmployeePage';
+import { DebtsPage } from './pages/DebtsPage';
 
 export default function App() {
   return (
@@ -51,6 +53,20 @@ export default function App() {
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
                   <span>POS Checkout</span>
+                </NavLink>
+
+                <NavLink
+                  to="/debts"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Debt Notebook (الديون)</span>
                 </NavLink>
 
                 <NavLink
@@ -146,6 +162,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/pos" replace />} />
             <Route path="/pos" element={<PosTerminal />} />
+            <Route path="/debts" element={<DebtsPage />} />
             <Route path="/printing" element={<PrintingPage />} />
             <Route path="/employees" element={<EmployeesPage />} />
             <Route path="/products" element={<ProductsPage />} />

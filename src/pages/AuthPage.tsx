@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { ShoppingCart, User, Lock, ArrowRight } from 'lucide-react';
+import { ShoppingCart, User, Lock, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { writeSession } from '../hooks/useSession';
 
 export const AuthPage = () => {
   const [username, setUsername] = useState('admin');
@@ -10,13 +11,18 @@ export const AuthPage = () => {
 
   const handleLogin = (e: FormEvent) => {
     e.preventDefault();
-    if (!username) return;
+    if (!username.trim()) return;
 
     setIsLoading(true);
+    writeSession(username.trim());
     setTimeout(() => {
       setIsLoading(false);
       navigate('/pos');
-    }, 400);
+    }, 300);
+  };
+
+  const handleQuickRole = (roleUsername: string) => {
+    setUsername(roleUsername);
   };
 
   return (
@@ -29,6 +35,40 @@ export const AuthPage = () => {
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">SUPERMARKET POS SYSTEM</h2>
           <p className="text-xs text-slate-500">Sign in to access cashier register & stock control</p>
+        </div>
+
+        {/* Quick Role Selectors */}
+        <div className="space-y-1.5">
+          <label className="block text-[10px] font-bold uppercase text-slate-400 text-center">
+            Demo Quick Login Roles
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickRole('admin')}
+              className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                username.toLowerCase() === 'admin'
+                  ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-xs ring-1 ring-blue-400'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Admin (All Access)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleQuickRole('cashier')}
+              className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                username.toLowerCase() === 'cashier'
+                  ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-xs ring-1 ring-blue-400'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5 text-slate-600" />
+              <span>Cashier</span>
+            </button>
+          </div>
         </div>
 
         {/* Login Form */}
@@ -91,3 +131,4 @@ export const AuthPage = () => {
     </div>
   );
 };
+

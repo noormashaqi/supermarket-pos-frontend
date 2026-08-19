@@ -143,7 +143,7 @@ export const EmployeesPage = () => {
       header: 'Permissions',
       cell: (e) => (
         <span className="text-xs font-semibold text-slate-600">
-          {e.role === 'Admin' ? 'All Permissions (Automatic)' : `${e.permissions.length} Custom Action Permissions`}
+          {e.role === 'Admin' ? 'All Permissions (Automatic)' : `${(e.permissions || []).length} Custom Action Permissions`}
         </span>
       ),
     },
@@ -167,7 +167,7 @@ export const EmployeesPage = () => {
         <div className="flex gap-2">
           <button
             onClick={() => {
-              setSelectedPermissions(e.permissions);
+              setSelectedPermissions(e.permissions || []);
               permModal.open(e);
             }}
             className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 cursor-pointer"

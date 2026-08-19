@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -8,15 +8,24 @@ import {
   ShoppingBag,
   Percent,
   AlertTriangle,
+  Banknote,
+  BookOpen,
+  UserPlus,
+  ChevronDown,
+  ShieldAlert,
 } from 'lucide-react';
-import type { Product, Category, Invoice } from '../../types';
+import type { Product, Category, Invoice, DebtCustomer } from '../../types';
 import { productsService } from '../../api/services/productsService';
 import { categoriesService } from '../../api/services/categoriesService';
 import { invoicesService } from '../../api/services/invoicesService';
+import { debtService } from '../../api/services/debtService';
 import { formatCurrency } from '../../utils';
+import { hasPermission } from '../../utils/permissions';
 import { PrintInvoiceModal } from '../invoices/PrintInvoiceModal';
+import { AddCustomerModal } from './AddCustomerModal';
 import { ToastContainer, type ToastMessage } from '../common';
 import { useModal } from '../../hooks';
+import { useSession } from '../../hooks/useSession';
 
 interface CartItem {
   product: Product;
@@ -35,6 +44,18 @@ export const PosTerminal = () => {
   const [discountPercentage, setDiscountPercentage] = useState('0'); // % Percentage only!
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Payment Method State
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'debt'>('cash');
+  const [debtCustomers, setDebtCustomers] = useState<DebtCustomer[]>([]);
+  const [selectedDebtCustomer, setSelectedDebtCustomer] = useState<DebtCustomer | null>(null);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Session & Permissions
+  const { session } = useSession();
+  const canManageDebt = hasPermission('debt.manage', session.permissions);
+
   // Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -50,6 +71,9 @@ export const PosTerminal = () => {
   // Print Modal
   const printModal = useModal<Invoice>();
 
+  // Add Customer Modal
+  const addCustomerModal = useModal();
+
   const loadPosData = async () => {
     const [prods, cats] = await Promise.all([
       productsService.getProducts(),
@@ -59,8 +83,25 @@ export const PosTerminal = () => {
     setCategories(cats);
   };
 
+  const loadDebtCustomers = async () => {
+    const customers = await debtService.getCustomers();
+    setDebtCustomers(customers);
+  };
+
   useEffect(() => {
     loadPosData();
+    loadDebtCustomers();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const addToCart = (product: Product) => {
@@ -113,9 +154,40 @@ export const PosTerminal = () => {
   const discountValue = totalBeforeDiscount * (discountPctNum / 100);
   const totalAfterDiscount = Number((totalBeforeDiscount - discountValue).toFixed(2));
 
+  const handlePaymentMethodChange = (method: 'cash' | 'debt') => {
+    if (method === 'debt' && !canManageDebt) {
+      addToast('error', '⛔ Access denied — "debt.manage" permission required. Login as admin.');
+      return;
+    }
+    setPaymentMethod(method);
+    if (method === 'cash') {
+      setSelectedDebtCustomer(null);
+      setCustomerSearchTerm('');
+      setShowCustomerDropdown(false);
+    }
+  };
+
+  const handleSelectDebtCustomer = (customer: DebtCustomer) => {
+    setSelectedDebtCustomer(customer);
+    setCustomerSearchTerm(customer.nickname);
+    setShowCustomerDropdown(false);
+    setCustomerName(customer.nickname);
+  };
+
+  const handleCustomerCreated = (customer: DebtCustomer) => {
+    setDebtCustomers((prev) => [...prev, customer]);
+    handleSelectDebtCustomer(customer);
+    addToast('success', `Customer "${customer.nickname}" created & selected!`);
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       addToast('error', 'Cannot checkout an empty invoice!');
+      return;
+    }
+
+    if (paymentMethod === 'debt' && !selectedDebtCustomer) {
+      addToast('error', 'Please select a customer for the debt sale!');
       return;
     }
 
@@ -130,12 +202,16 @@ export const PosTerminal = () => {
     try {
       const invoiceData = await invoicesService.createInvoice(
         {
-          customerName,
+          customerName: paymentMethod === 'debt' && selectedDebtCustomer
+            ? selectedDebtCustomer.nickname
+            : customerName,
           discountPercentage: discountPctNum,
           items: cart.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
           })),
+          paymentMethod,
+          debtCustomerId: selectedDebtCustomer?.id,
         },
         cart.map((item) => ({
           name: item.product.name,
@@ -146,8 +222,14 @@ export const PosTerminal = () => {
 
       setCart([]);
       setDiscountPercentage('0');
+      setPaymentMethod('cash');
+      setSelectedDebtCustomer(null);
+      setCustomerSearchTerm('');
       await loadPosData();
-      addToast('success', `Invoice #${invoiceData.invoiceNumber} created & saved successfully!`);
+      await loadDebtCustomers();
+
+      const methodLabel = invoiceData.paymentMethod === 'debt' ? '(DEBT)' : '(CASH)';
+      addToast('success', `Invoice #${invoiceData.invoiceNumber} ${methodLabel} created & saved successfully!`);
       printModal.open(invoiceData);
     } catch (err: any) {
       addToast('error', `Checkout failed: ${err.message || 'Error occurred'}`);
@@ -161,6 +243,10 @@ export const PosTerminal = () => {
     const matchesCat = selectedCategory === 'all' || p.categoryId === selectedCategory;
     return matchesSearch && matchesCat;
   });
+
+  const filteredDebtCustomers = debtCustomers.filter((c) =>
+    c.nickname.toLowerCase().includes(customerSearchTerm.toLowerCase())
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-130px)] min-h-[600px]">
@@ -305,19 +391,167 @@ export const PosTerminal = () => {
           </span>
         </div>
 
-        {/* Customer Name */}
+        {/* ─── Payment Method Toggle ─── */}
         <div className="my-3">
-          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-            Customer Name
+          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">
+            Payment Method (طريقة الدفع)
           </label>
-          <input
-            type="text"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="Walk-in Customer"
-            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handlePaymentMethodChange('cash')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                paymentMethod === 'cash'
+                  ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+              }`}
+            >
+              <Banknote className="w-4 h-4" />
+              <span>Cash (نقد)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePaymentMethodChange('debt')}
+              disabled={!canManageDebt}
+              title={!canManageDebt ? 'Requires debt.manage permission — login as admin' : 'Record as debt / notebook sale'}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                !canManageDebt
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 opacity-60'
+                  : paymentMethod === 'debt'
+                  ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300 cursor-pointer'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 cursor-pointer'
+              }`}
+            >
+              {!canManageDebt ? (
+                <ShieldAlert className="w-4 h-4" />
+              ) : (
+                <BookOpen className="w-4 h-4" />
+              )}
+              <span>Debt / دين</span>
+            </button>
+          </div>
+
+          {/* Permission denied notice */}
+          {!canManageDebt && (
+            <p className="text-[10px] text-amber-600 mt-1.5 flex items-center gap-1 font-medium">
+              <ShieldAlert className="w-3 h-3" />
+              Debt sales require "debt.manage" permission. Login as admin to enable.
+            </p>
+          )}
         </div>
+
+        {/* ─── Debt Customer Selector (shown only when Debt is selected) ─── */}
+        {paymentMethod === 'debt' && (
+          <div className="mb-3 space-y-2">
+            <label className="block text-[10px] font-bold uppercase text-slate-500">
+              Select Debt Customer (اختر الزبون)
+            </label>
+            <div className="relative" ref={customerDropdownRef}>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={customerSearchTerm}
+                  onChange={(e) => {
+                    setCustomerSearchTerm(e.target.value);
+                    setShowCustomerDropdown(true);
+                    if (!e.target.value) setSelectedDebtCustomer(null);
+                  }}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  placeholder="Search customer by nickname..."
+                  className="w-full pl-9 pr-8 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
+                />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+              </div>
+
+              {/* Dropdown List */}
+              {showCustomerDropdown && (
+                <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                  {filteredDebtCustomers.length === 0 ? (
+                    <div className="p-3 text-center text-[11px] text-slate-400">
+                      No customers found
+                    </div>
+                  ) : (
+                    filteredDebtCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleSelectDebtCustomer(c)}
+                        className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors cursor-pointer flex justify-between items-center ${
+                          selectedDebtCustomer?.id === c.id ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                        }`}
+                      >
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{c.nickname}</p>
+                          {c.phone && (
+                            <p className="text-[10px] text-slate-400">{c.phone}</p>
+                          )}
+                        </div>
+                        {c.totalOutstanding > 0 && (
+                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
+                            {formatCurrency(c.totalOutstanding)}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+
+                  {/* Add New Customer Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomerDropdown(false);
+                      addCustomerModal.open();
+                    }}
+                    className="w-full text-left px-3 py-2.5 border-t border-slate-100 hover:bg-emerald-50 transition-colors cursor-pointer flex items-center gap-2 text-emerald-700"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span className="text-xs font-bold">+ Add New Customer / Nickname</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Selected customer badge */}
+            {selectedDebtCustomer && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl">
+                <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-amber-800">{selectedDebtCustomer.nickname}</p>
+                  <p className="text-[10px] text-amber-600">
+                    Current debt: {formatCurrency(selectedDebtCustomer.totalOutstanding)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDebtCustomer(null);
+                    setCustomerSearchTerm('');
+                  }}
+                  className="text-amber-400 hover:text-amber-600 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Customer Name (shown only for cash payments) */}
+        {paymentMethod === 'cash' && (
+          <div className="my-3">
+            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+              Customer Name
+            </label>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Walk-in Customer"
+              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            />
+          </div>
+        )}
 
         {/* Cart Items List */}
         <div className="flex-1 overflow-y-auto my-2 space-y-2 pr-1">
@@ -430,9 +664,17 @@ export const PosTerminal = () => {
                 <span>-{formatCurrency(discountValue)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-1.5 mt-1">
-              <span>Final Total (Cash Only):</span>
-              <span className="text-emerald-600 text-base">{formatCurrency(totalAfterDiscount)}</span>
+            <div className={`flex justify-between text-sm font-bold border-t border-slate-200 pt-1.5 mt-1 ${
+              paymentMethod === 'debt' ? 'text-amber-800' : 'text-slate-900'
+            }`}>
+              <span>
+                {paymentMethod === 'debt'
+                  ? 'Total (DEBT — Notebook):'
+                  : 'Final Total (Cash Only):'}
+              </span>
+              <span className={`text-base ${paymentMethod === 'debt' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {formatCurrency(totalAfterDiscount)}
+              </span>
             </div>
           </div>
 
@@ -440,15 +682,27 @@ export const PosTerminal = () => {
           <button
             type="button"
             onClick={handleCheckout}
-            disabled={cart.length === 0 || isSubmitting}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            disabled={cart.length === 0 || isSubmitting || (paymentMethod === 'debt' && !selectedDebtCustomer)}
+            className={`w-full py-3 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
+              paymentMethod === 'debt'
+                ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
             {isSubmitting ? (
               <span>Confirming Sale...</span>
             ) : (
               <>
-                <Printer className="w-4 h-4" />
-                <span>CONFIRM SALE & PRINT RECEIPT ({formatCurrency(totalAfterDiscount)})</span>
+                {paymentMethod === 'debt' ? (
+                  <BookOpen className="w-4 h-4" />
+                ) : (
+                  <Printer className="w-4 h-4" />
+                )}
+                <span>
+                  {paymentMethod === 'debt'
+                    ? `CONFIRM DEBT SALE & PRINT (${formatCurrency(totalAfterDiscount)})`
+                    : `CONFIRM SALE & PRINT RECEIPT (${formatCurrency(totalAfterDiscount)})`}
+                </span>
               </>
             )}
           </button>
@@ -460,6 +714,13 @@ export const PosTerminal = () => {
         isOpen={printModal.isOpen}
         onClose={printModal.close}
         invoice={printModal.data}
+      />
+
+      {/* Add Customer Modal */}
+      <AddCustomerModal
+        isOpen={addCustomerModal.isOpen}
+        onClose={addCustomerModal.close}
+        onCustomerCreated={handleCustomerCreated}
       />
     </div>
   );
