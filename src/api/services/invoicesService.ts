@@ -118,7 +118,7 @@ export const invoicesService = {
           discountPercentage: input.discountPercentage || 0,
           customerName: input.customerName || 'Walk-in Customer',
           employeeName,
-          paymentMethod,
+          paymentMethod: formattedPaymentMethod,
           PaymentMethod: formattedPaymentMethod,
           debtCustomerId: parsedDebtCustId,
           DebtCustomerId: parsedDebtCustId,

@@ -26,7 +26,7 @@ export const debtService = {
           id: String(c.id || c.customerId),
           nickname: c.nickname || c.fullName || c.name || 'Customer',
           phone: c.phone || c.phoneNumber || '',
-          totalOutstanding: c.totalOutstanding ?? c.totalDebt ?? c.balance ?? 0,
+          totalOutstanding: Number(c.totalOutstanding ?? c.totalDebt ?? c.currentBalance ?? c.balance ?? 0),
           lastTransactionDate: c.lastTransactionDate || c.lastActivityDate || c.updatedAt || null,
         }));
       }
