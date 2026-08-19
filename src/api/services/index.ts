@@ -4,3 +4,5 @@ export * from './invoicesService';
 export * from './returnsService';
 export * from './employeeService';
 export * from './debtService';
+export * from './dashboardService';
+export * from './reportsService';
