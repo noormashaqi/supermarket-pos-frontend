@@ -7,11 +7,11 @@ import {
   Tags,
   History,
   Users,
-  BookOpen,
   LayoutDashboard,
   BarChart3,
   FileText,
   LogOut,
+  BookOpen,
 } from 'lucide-react';
 import { PosTerminal } from './components/pos/PosTerminal';
 import { ProductsPage } from './pages/ProductsPage';
@@ -21,8 +21,8 @@ import { InvoicesPage } from './pages/InvoicesPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AuthPage } from './pages/AuthPage';
-import { DebtsPage } from './pages/DebtsPage';
 import { UsersPageWrapper } from './pages/UsersPageWrapper';
+import { DebtsPage } from './pages/DebtsPage';
 import type { SessionState } from './types/app';
 import { hasPermission } from './utils';
 import { PermissionKeys } from './types/employees';
@@ -52,18 +52,26 @@ function AppContent() {
   };
 
   // Check per-action screen permissions
-  const canPOS = hasPermission(PermissionKeys.SalesCreate) || hasPermission('sales.create') || true;
-  const canDebts = hasPermission('debt.manage') || session?.role === 'Admin' || session?.role === 'admin' || true;
-  const canInvoices = hasPermission(PermissionKeys.InvoicesView) || hasPermission('invoices.view') || true;
-  const canProducts = hasPermission(PermissionKeys.ProductsView) || hasPermission(PermissionKeys.ProductsManage) || true;
-  const canCategories = hasPermission(PermissionKeys.CategoriesView) || hasPermission(PermissionKeys.CategoriesManage) || true;
-  const canStockHistory = hasPermission(PermissionKeys.StockAdd) || true;
-  const canEmployees = hasPermission(PermissionKeys.EmployeesView) || hasPermission(PermissionKeys.EmployeesManage) || true;
-  const canReports = hasPermission(PermissionKeys.ReportsView) || true;
-  const canDashboard = hasPermission(PermissionKeys.DashboardView) || true;
+  const canPOS = hasPermission(PermissionKeys.SalesCreate) || hasPermission('sales.create');
+  const canDebts = hasPermission('debt.manage') || session?.role === 'Admin' || session?.role === 'admin';
+  const canInvoices = hasPermission(PermissionKeys.InvoicesView) || hasPermission('invoices.view');
+  const canProducts = hasPermission(PermissionKeys.ProductsView) || hasPermission(PermissionKeys.ProductsManage);
+  const canCategories = hasPermission(PermissionKeys.CategoriesView) || hasPermission(PermissionKeys.CategoriesManage);
+  const canStockHistory = hasPermission(PermissionKeys.StockAdd) || hasPermission('products.stock_add');
+  const canEmployees = hasPermission(PermissionKeys.EmployeesView) || hasPermission(PermissionKeys.EmployeesManage);
+  const canReports = hasPermission(PermissionKeys.ReportsView) || hasPermission('reports.view');
+  const canDashboard = hasPermission(PermissionKeys.DashboardView) || hasPermission('dashboard.view');
 
   const getDefaultRoute = () => {
-    return '/pos';
+    if (canDashboard) return '/dashboard';
+    if (canPOS) return '/pos';
+    if (canInvoices) return '/invoices';
+    if (canProducts) return '/products';
+    if (canCategories) return '/categories';
+    if (canStockHistory) return '/stock-history';
+    if (canEmployees) return '/employees';
+    if (canReports) return '/reports';
+    return '/login';
   };
 
   return (
@@ -87,131 +95,149 @@ function AppContent() {
 
             {/* Navigation Links */}
             <nav className="flex space-x-1 overflow-x-auto bg-slate-100 p-1 rounded-xl scrollbar-none items-center">
-              <NavLink
-                to="/pos"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <ShoppingCart className="w-3.5 h-3.5" />
-                <span>POS Checkout</span>
-              </NavLink>
+              {session && canPOS && (
+                <NavLink
+                  to="/pos"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  <span>POS Checkout</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/debts"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Debt Notebook (الديون)</span>
-              </NavLink>
+              {session && canDebts && (
+                <NavLink
+                  to="/debts"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Debt Notebook (الديون)</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/invoices"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Invoices & Returns</span>
-              </NavLink>
+              {session && canInvoices && (
+                <NavLink
+                  to="/invoices"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Invoices & Returns</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/products"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <Package className="w-3.5 h-3.5" />
-                <span>Products</span>
-              </NavLink>
+              {session && canProducts && (
+                <NavLink
+                  to="/products"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Products</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/categories"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <Tags className="w-3.5 h-3.5" />
-                <span>Categories</span>
-              </NavLink>
+              {session && canCategories && (
+                <NavLink
+                  to="/categories"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <Tags className="w-3.5 h-3.5" />
+                  <span>Categories</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/stock-history"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <History className="w-3.5 h-3.5" />
-                <span>Stock History</span>
-              </NavLink>
+              {session && canStockHistory && (
+                <NavLink
+                  to="/stock-history"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Stock History</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/employees"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Employees</span>
-              </NavLink>
+              {session && canEmployees && (
+                <NavLink
+                  to="/employees"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Employees</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/reports"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Reports</span>
-              </NavLink>
+              {session && canReports && (
+                <NavLink
+                  to="/reports"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Reports</span>
+                </NavLink>
+              )}
 
-              <NavLink
-                to="/dashboard"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`
-                }
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>Dashboard</span>
-              </NavLink>
+              {session && canDashboard && (
+                <NavLink
+                  to="/dashboard"
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`
+                  }
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Dashboard</span>
+                </NavLink>
+              )}
 
               {session ? (
                 <button
@@ -244,18 +270,48 @@ function AppContent() {
       {/* MAIN ROUTE CONTENT */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Routes>
-          <Route path="/" element={<Navigate to="/pos" replace />} />
-          <Route path="/pos" element={<PosTerminal />} />
-          <Route path="/debts" element={<DebtsPage />} />
-          <Route path="/invoices" element={<InvoicesPage />} />
-          <Route path="/products" element={<ProductsPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
-          <Route path="/stock-history" element={<StockHistoryPage />} />
-          <Route path="/employees" element={<UsersPageWrapper />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/login" element={<AuthPage />} />
-          <Route path="*" element={<Navigate to="/pos" replace />} />
+          <Route path="/" element={<Navigate to={session ? getDefaultRoute() : "/login"} replace />} />
+          <Route
+            path="/pos"
+            element={session && canPOS ? <PosTerminal /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/debts"
+            element={session && canDebts ? <DebtsPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/invoices"
+            element={session && canInvoices ? <InvoicesPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/products"
+            element={session && canProducts ? <ProductsPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/categories"
+            element={session && canCategories ? <CategoriesPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/stock-history"
+            element={session && canStockHistory ? <StockHistoryPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/employees"
+            element={session && canEmployees ? <UsersPageWrapper /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/reports"
+            element={session && canReports ? <ReportsPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/dashboard"
+            element={session && canDashboard ? <DashboardPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/login"
+            element={!session ? <AuthPage /> : <Navigate to={getDefaultRoute()} replace />}
+          />
+          <Route path="*" element={<Navigate to={session ? getDefaultRoute() : "/login"} replace />} />
         </Routes>
       </main>
     </div>

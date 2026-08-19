@@ -12,6 +12,7 @@ export const PermissionKeys = {
   CategoriesView: 'categories.view',
   CategoriesManage: 'categories.manage',
   StockAdd: 'products.stock_add',
+  InventoryStockAdd: 'inventory.stock_add',
   EmployeesView: 'employees.view',
   EmployeesManage: 'employees.manage',
   ReportsView: 'reports.view',
