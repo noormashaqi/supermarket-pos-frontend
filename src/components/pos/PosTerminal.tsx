@@ -7,29 +7,44 @@ import {
   Printer,
   ShoppingBag,
   Percent,
-  AlertTriangle,
   Banknote,
   BookOpen,
   UserPlus,
   ChevronDown,
   ShieldAlert,
+  Pause,
+  Play,
+  Edit2,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
 import type { Product, Category, Invoice, DebtCustomer } from '../../types';
 import { productsService } from '../../api/services/productsService';
 import { categoriesService } from '../../api/services/categoriesService';
 import { invoicesService } from '../../api/services/invoicesService';
 import { debtService } from '../../api/services/debtService';
-import { formatCurrency } from '../../utils';
-import { hasPermission } from '../../utils/permissions';
+import { formatCurrency, getSession, hasPermission } from '../../utils';
+import { PermissionKeys } from '../../types/employees';
 import { PrintInvoiceModal } from '../invoices/PrintInvoiceModal';
 import { AddCustomerModal } from './AddCustomerModal';
-import { ToastContainer, type ToastMessage } from '../common';
+import { SupervisorOverrideModal } from './SupervisorOverrideModal';
+import { ToastContainer, type ToastMessage, Modal } from '../common';
 import { useModal } from '../../hooks';
 import { useSession } from '../../hooks/useSession';
 
 interface CartItem {
   product: Product;
   quantity: number;
+  unitPrice?: number; // Custom overriden unit price
+}
+
+interface HeldInvoice {
+  id: string;
+  referenceTag: string;
+  cart: CartItem[];
+  customerName: string;
+  discountPercentage: string;
+  timestamp: string;
 }
 
 export const PosTerminal = () => {
@@ -37,6 +52,10 @@ export const PosTerminal = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Held Invoices State
+  const [heldInvoices, setHeldInvoices] = useState<HeldInvoice[]>([]);
+  const [isHeldModalOpen, setIsHeldModalOpen] = useState(false);
 
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -52,9 +71,23 @@ export const PosTerminal = () => {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Price Override & Supervisor Authorization State
+  const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
+  const [tempPriceInput, setTempPriceInput] = useState<string>('');
+  const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
+  const [pendingOverrideItem, setPendingOverrideItem] = useState<{ productId: string; targetPrice: number } | null>(null);
+  const [authorizedSupervisorName, setAuthorizedSupervisorName] = useState<string | null>(null);
+
   // Session & Permissions
   const { session } = useSession();
-  const canManageDebt = hasPermission('debt.manage', session.permissions);
+  const canManageDebt = hasPermission('debt.manage', session.permissions) || hasPermission('admin', session.permissions) || session.role === 'admin' || session.role === 'Admin';
+
+  const canOverridePrice =
+    hasPermission(PermissionKeys.InvoicesOverridePrice) ||
+    hasPermission(PermissionKeys.SalesPriceOverride) ||
+    hasPermission('invoices.override_price') ||
+    hasPermission('sales.price_override') ||
+    Boolean(authorizedSupervisorName);
 
   // Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -91,6 +124,15 @@ export const PosTerminal = () => {
   useEffect(() => {
     loadPosData();
     loadDebtCustomers();
+
+    try {
+      const stored = localStorage.getItem('supermarket_held_invoices');
+      if (stored) {
+        setHeldInvoices(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.error('Error loading held invoices:', err);
+    }
   }, []);
 
   // Close dropdown when clicking outside
@@ -103,6 +145,72 @@ export const PosTerminal = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleHoldInvoice = () => {
+    if (cart.length === 0) {
+      addToast('error', 'Cannot hold an empty cart!');
+      return;
+    }
+
+    const tag = window.prompt(
+      'Enter an optional reference tag/note for this paused order:',
+      `Customer ${heldInvoices.length + 1}`
+    );
+    if (tag === null) return;
+
+    const referenceTag = tag.trim() || `Customer ${heldInvoices.length + 1}`;
+    const newHeld: HeldInvoice = {
+      id: String(Date.now()),
+      referenceTag,
+      cart,
+      customerName,
+      discountPercentage,
+      timestamp: new Date().toISOString(),
+    };
+
+    const updated = [...heldInvoices, newHeld];
+    setHeldInvoices(updated);
+    localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
+
+    setCart([]);
+    setDiscountPercentage('0');
+    setCustomerName('Walk-in Customer');
+
+    addToast('success', `Cart held successfully: "${referenceTag}"`);
+  };
+
+  const handleResumeInvoice = (held: HeldInvoice) => {
+    if (cart.length > 0) {
+      const confirmOverwrite = window.confirm(
+        'There are items in your active register workspace. Resuming this order will overwrite the current cart. Do you want to proceed?'
+      );
+      if (!confirmOverwrite) return;
+    }
+
+    setCart(held.cart);
+    setCustomerName(held.customerName || 'Walk-in Customer');
+    setDiscountPercentage(held.discountPercentage || '0');
+
+    const updated = heldInvoices.filter((item) => item.id !== held.id);
+    setHeldInvoices(updated);
+    localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
+
+    setIsHeldModalOpen(false);
+    addToast('success', `Resumed order: "${held.referenceTag}"`);
+  };
+
+  const handleDiscardInvoice = (id: string, tag: string) => {
+    const confirmDiscard = window.confirm(
+      `Are you sure you want to discard the held order "${tag}"? This action cannot be undone.`
+    );
+    if (!confirmDiscard) return;
+
+    const updated = heldInvoices.filter((item) => item.id !== id);
+    setHeldInvoices(updated);
+    localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
+
+    addToast('info', `Discarded held order: "${tag}"`);
+  };
 
   const addToCart = (product: Product) => {
     if (product.quantity <= 0) {
@@ -122,7 +230,7 @@ export const PosTerminal = () => {
           idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prevCart, { product, quantity: 1 }];
+      return [...prevCart, { product, quantity: 1, unitPrice: product.sellingPrice }];
     });
   };
 
@@ -148,8 +256,57 @@ export const PosTerminal = () => {
     setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId));
   };
 
-  // Calculations (Percentage discount on invoice level only, NO tax)
-  const totalBeforeDiscount = cart.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
+  const getItemUnitPrice = (item: CartItem) => item.unitPrice ?? item.product.sellingPrice;
+
+  const startEditUnitPrice = (item: CartItem) => {
+    const currentPrice = getItemUnitPrice(item);
+    setEditingPriceProductId(item.product.id);
+    setTempPriceInput(String(currentPrice));
+  };
+
+  const saveUnitPriceEdit = (productId: string) => {
+    const parsedPrice = parseFloat(tempPriceInput);
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      addToast('error', 'Invalid unit price value!');
+      setEditingPriceProductId(null);
+      return;
+    }
+
+    if (canOverridePrice) {
+      setCart((prev) =>
+        prev.map((item) =>
+          item.product.id === productId ? { ...item, unitPrice: parsedPrice } : item
+        )
+      );
+      setEditingPriceProductId(null);
+      addToast('success', 'Unit price updated successfully!');
+    } else {
+      setPendingOverrideItem({ productId, targetPrice: parsedPrice });
+      setIsSupervisorModalOpen(true);
+      setEditingPriceProductId(null);
+    }
+  };
+
+  const handleSupervisorAuthorized = (supervisorName: string) => {
+    setAuthorizedSupervisorName(supervisorName);
+    if (pendingOverrideItem) {
+      setCart((prev) =>
+        prev.map((item) =>
+          item.product.id === pendingOverrideItem.productId
+            ? { ...item, unitPrice: pendingOverrideItem.targetPrice }
+            : item
+        )
+      );
+      addToast('success', `Price override approved by supervisor @${supervisorName}!`);
+    }
+    setPendingOverrideItem(null);
+  };
+
+  // Calculations
+  const totalBeforeDiscount = cart.reduce(
+    (sum, item) => sum + getItemUnitPrice(item) * item.quantity,
+    0
+  );
   const discountPctNum = Math.min(100, Math.max(0, Number(discountPercentage) || 0));
   const discountValue = totalBeforeDiscount * (discountPctNum / 100);
   const totalAfterDiscount = Number((totalBeforeDiscount - discountValue).toFixed(2));
@@ -200,6 +357,9 @@ export const PosTerminal = () => {
 
     setIsSubmitting(true);
     try {
+      const activeSession = getSession();
+      const currentEmployeeName = activeSession ? (activeSession.fullName || activeSession.username) : 'Cashier';
+
       const invoiceData = await invoicesService.createInvoice(
         {
           customerName: paymentMethod === 'debt' && selectedDebtCustomer
@@ -209,6 +369,7 @@ export const PosTerminal = () => {
           items: cart.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
+            unitPrice: getItemUnitPrice(item),
           })),
           paymentMethod,
           debtCustomerId: selectedDebtCustomer?.id,
@@ -217,7 +378,7 @@ export const PosTerminal = () => {
           name: item.product.name,
           unit: item.product.unit,
         })),
-        'Ahmad (Cashier)'
+        currentEmployeeName
       );
 
       setCart([]);
@@ -268,7 +429,7 @@ export const PosTerminal = () => {
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
-              className="text-xs text-slate-400 hover:text-slate-600 px-2"
+              className="text-xs text-slate-400 hover:text-slate-600 px-2 cursor-pointer"
             >
               Clear
             </button>
@@ -314,58 +475,71 @@ export const PosTerminal = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-              {filteredProducts.map((p) => {
-                const isLowStock = p.quantity <= p.minStockLevel && p.quantity > 0;
-                const isOutOfStock = p.quantity === 0;
+              {filteredProducts.map((product) => {
+                const inCart = cart.find((i) => i.product.id === product.id);
+                const isOutOfStock = product.quantity <= 0;
+                const isLowStock = product.quantity <= product.minStockLevel && product.quantity > 0;
 
                 return (
                   <div
-                    key={p.id}
-                    onClick={() => addToCart(p)}
-                    className={`bg-white p-3.5 rounded-2xl border transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5 hover:shadow-md ${
+                    key={product.id}
+                    onClick={() => addToCart(product)}
+                    className={`bg-white p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative group ${
                       isOutOfStock
-                        ? 'border-rose-200 bg-rose-50/20 opacity-60'
-                        : isLowStock
-                        ? 'border-amber-300 hover:border-amber-400'
-                        : 'border-slate-200 hover:border-blue-400'
+                        ? 'opacity-60 border-slate-200 bg-slate-50 cursor-not-allowed'
+                        : 'border-slate-200 hover:border-blue-500 hover:shadow-md'
                     }`}
                   >
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                          {p.unit === 'package' ? 'Package (باكيج)' : 'Piece (حبة)'}
-                        </span>
+                    {inCart && (
+                      <span className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-[10px] w-6 h-6 rounded-full flex items-center justify-center shadow-sm">
+                        {inCart.quantity}
+                      </span>
+                    )}
 
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 truncate">
+                          {product.categoryName}
+                        </span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            product.unit === 'package'
+                              ? 'bg-purple-50 text-purple-600 border border-purple-100'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {product.unit === 'package' ? 'Package' : 'Piece'}
+                        </span>
+                      </div>
+
+                      <h3 className="font-bold text-slate-800 text-xs leading-snug line-clamp-2">
+                        {product.name}
+                      </h3>
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-end">
+                      <div>
+                        <p className="text-sm font-extrabold text-blue-600">
+                          {formatCurrency(product.sellingPrice)}
+                        </p>
+                        <p className="text-[9px] text-slate-400">per {product.unit}</p>
+                      </div>
+
+                      <div>
                         {isOutOfStock ? (
-                          <span className="text-[9px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded">
-                            OUT
+                          <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded">
+                            Out of Stock
                           </span>
                         ) : isLowStock ? (
-                          <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                            <AlertTriangle className="w-2.5 h-2.5" /> ({p.quantity})
+                          <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                            Stock: {product.quantity}
                           </span>
                         ) : (
-                          <span className="text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                            {p.quantity} stock
+                          <span className="text-[9px] font-semibold text-slate-500">
+                            Stock: {product.quantity}
                           </span>
                         )}
                       </div>
-                      <h3 className="text-xs font-bold text-slate-800 line-clamp-2">{p.name}</h3>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{p.categoryName}</p>
-                    </div>
-
-                    <div className="mt-3 flex justify-between items-center pt-2 border-t border-slate-100">
-                      <span className="text-sm font-bold text-emerald-600">{formatCurrency(p.sellingPrice)}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addToCart(p);
-                        }}
-                        className="w-6 h-6 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center shadow-xs cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
                     </div>
                   </div>
                 );
@@ -386,9 +560,23 @@ export const PosTerminal = () => {
             </h2>
             <p className="text-[11px] text-slate-500">Order items breakdown</p>
           </div>
-          <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100">
-            {cart.reduce((s, i) => s + i.quantity, 0)} items
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsHeldModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-xl transition-all cursor-pointer border ${
+                heldInvoices.length > 0
+                  ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                  : 'text-slate-500 bg-slate-50 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Pause className="w-3 h-3" />
+              <span>Held ({heldInvoices.length})</span>
+            </button>
+            <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100">
+              {cart.reduce((s, i) => s + i.quantity, 0)} items
+            </span>
+          </div>
         </div>
 
         {/* ─── Payment Method Toggle ─── */}
@@ -431,7 +619,6 @@ export const PosTerminal = () => {
             </button>
           </div>
 
-          {/* Permission denied notice */}
           {!canManageDebt && (
             <p className="text-[10px] text-amber-600 mt-1.5 flex items-center gap-1 font-medium">
               <ShieldAlert className="w-3 h-3" />
@@ -562,51 +749,105 @@ export const PosTerminal = () => {
               <p className="text-[10px] text-slate-400 mt-0.5">Click any product to add to cart.</p>
             </div>
           ) : (
-            cart.map((item) => (
-              <div
-                key={item.product.id}
-                className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center"
-              >
-                <div className="flex-1 min-w-0 mr-2">
-                  <p className="text-xs font-bold text-slate-800 truncate">{item.product.name}</p>
-                  <p className="text-[10px] text-slate-500">
-                    {formatCurrency(item.product.sellingPrice)} / {item.product.unit} x {item.quantity}
-                  </p>
-                </div>
+            cart.map((item) => {
+              const currentUnitPrice = getItemUnitPrice(item);
+              const isOverridden = item.unitPrice !== undefined && item.unitPrice !== item.product.sellingPrice;
+              const isEditingThis = editingPriceProductId === item.product.id;
 
-                <div className="flex items-center gap-1.5">
-                  <div className="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-xs">
+              return (
+                <div
+                  key={item.product.id}
+                  className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0 mr-2">
+                      <p className="text-xs font-bold text-slate-800 truncate">{item.product.name}</p>
+
+                      {/* Price Row with Direct Edit / Override Button */}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {isEditingThis ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-slate-500">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={tempPriceInput}
+                              onChange={(e) => setTempPriceInput(e.target.value)}
+                              autoFocus
+                              className="w-16 px-1.5 py-0.5 bg-white border border-blue-400 rounded text-xs font-bold text-blue-700 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveUnitPriceEdit(item.product.id)}
+                              className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 cursor-pointer"
+                              title="Save Price"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-slate-500">
+                              {formatCurrency(currentUnitPrice)} / {item.product.unit}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => startEditUnitPrice(item)}
+                              className="text-[10px] text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-0.5 cursor-pointer ml-1"
+                              title={canOverridePrice ? 'Edit Unit Price' : 'Override Price (Requires Manager Approval)'}
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                              <span>{canOverridePrice ? 'Edit' : 'Override'}</span>
+                            </button>
+
+                            {isOverridden && (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1 rounded flex items-center gap-0.5">
+                                <ShieldCheck className="w-2.5 h-2.5" />
+                                <span>Overridden</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.product.id, -1)}
-                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                      onClick={() => removeFromCart(item.product.id)}
+                      className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors"
                     >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="w-6 text-center text-xs font-bold text-slate-800">{item.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(item.product.id, 1)}
-                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  <span className="text-xs font-bold text-emerald-600 min-w-[50px] text-right">
-                    {formatCurrency(item.product.sellingPrice * item.quantity)}
-                  </span>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
+                    <div className="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.product.id, -1)}
+                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-6 text-center text-xs font-bold text-slate-800">{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.product.id, 1)}
+                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => removeFromCart(item.product.id)}
-                    className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                    <span className="text-xs font-bold text-emerald-600 text-right">
+                      {formatCurrency(currentUnitPrice * item.quantity)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -648,14 +889,14 @@ export const PosTerminal = () => {
                 placeholder="0%"
                 className="w-full pl-3 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <Percent className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              <Percent className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5" />
             </div>
           </div>
 
-          {/* Totals Breakdown */}
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+          {/* Subtotal & Total Breakdown */}
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1 text-xs">
             <div className="flex justify-between text-slate-600">
-              <span>Subtotal:</span>
+              <span>Subtotal (قبل الخصم):</span>
               <span className="font-semibold text-slate-800">{formatCurrency(totalBeforeDiscount)}</span>
             </div>
             {discountPctNum > 0 && (
@@ -670,50 +911,67 @@ export const PosTerminal = () => {
               <span>
                 {paymentMethod === 'debt'
                   ? 'Total (DEBT — Notebook):'
-                  : 'Final Total (Cash Only):'}
+                  : 'Total Payable (المبلغ النهائي):'}
               </span>
-              <span className={`text-base ${paymentMethod === 'debt' ? 'text-amber-600' : 'text-emerald-600'}`}>
+              <span className={`text-base ${paymentMethod === 'debt' ? 'text-amber-600 font-black' : 'text-emerald-600 font-black'}`}>
                 {formatCurrency(totalAfterDiscount)}
               </span>
             </div>
           </div>
 
-          {/* Confirm Invoice Button */}
-          <button
-            type="button"
-            onClick={handleCheckout}
-            disabled={cart.length === 0 || isSubmitting || (paymentMethod === 'debt' && !selectedDebtCustomer)}
-            className={`w-full py-3 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
-              paymentMethod === 'debt'
-                ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            {isSubmitting ? (
-              <span>Confirming Sale...</span>
-            ) : (
-              <>
-                {paymentMethod === 'debt' ? (
-                  <BookOpen className="w-4 h-4" />
-                ) : (
-                  <Printer className="w-4 h-4" />
-                )}
-                <span>
-                  {paymentMethod === 'debt'
-                    ? `CONFIRM DEBT SALE & PRINT (${formatCurrency(totalAfterDiscount)})`
-                    : `CONFIRM SALE & PRINT RECEIPT (${formatCurrency(totalAfterDiscount)})`}
-                </span>
-              </>
-            )}
-          </button>
+          {/* Action Bar */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleHoldInvoice}
+              disabled={isSubmitting || cart.length === 0}
+              className="px-3 py-3 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs rounded-xl border border-amber-200 flex items-center justify-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+              title="Pause/Hold current order workspace"
+            >
+              <Pause className="w-4 h-4" />
+              <span>Hold</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCheckout}
+              disabled={cart.length === 0 || isSubmitting || (paymentMethod === 'debt' && !selectedDebtCustomer)}
+              className={`flex-1 py-3 font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 ${
+                paymentMethod === 'debt'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
+            >
+              {isSubmitting ? (
+                <span>Confirming Sale...</span>
+              ) : (
+                <>
+                  {paymentMethod === 'debt' ? (
+                    <BookOpen className="w-4 h-4" />
+                  ) : (
+                    <Printer className="w-4 h-4" />
+                  )}
+                  <span>
+                    {paymentMethod === 'debt'
+                      ? `CONFIRM DEBT SALE (${formatCurrency(totalAfterDiscount)})`
+                      : `CONFIRM & PRINT RECEIPT (${formatCurrency(totalAfterDiscount)})`}
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Print Thermal Receipt Modal */}
-      <PrintInvoiceModal
-        isOpen={printModal.isOpen}
-        onClose={printModal.close}
-        invoice={printModal.data}
+      {/* Supervisor Override Authorization Modal */}
+      <SupervisorOverrideModal
+        isOpen={isSupervisorModalOpen}
+        onClose={() => {
+          setIsSupervisorModalOpen(false);
+          setPendingOverrideItem(null);
+        }}
+        onAuthorize={handleSupervisorAuthorized}
+        itemName={cart.find((i) => i.product.id === pendingOverrideItem?.productId)?.product.name}
       />
 
       {/* Add Customer Modal */}
@@ -722,6 +980,77 @@ export const PosTerminal = () => {
         onClose={addCustomerModal.close}
         onCustomerCreated={handleCustomerCreated}
       />
+
+      {/* Held Orders Registry Modal */}
+      <Modal
+        isOpen={isHeldModalOpen}
+        onClose={() => setIsHeldModalOpen(false)}
+        title="Held / Paused Orders Registry (الطلبات المعلقة)"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {heldInvoices.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 space-y-1">
+              <Pause className="w-8 h-8 mx-auto text-slate-300 stroke-1" />
+              <p className="text-xs font-bold text-slate-600">No held orders currently saved.</p>
+              <p className="text-[10px] text-slate-400">You can hold an order workspace to process another sale.</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-1">
+              {heldInvoices.map((held) => {
+                const itemCount = held.cart.reduce((s, i) => s + i.quantity, 0);
+                const heldTotal = held.cart.reduce((s, i) => s + (i.unitPrice ?? i.product.sellingPrice) * i.quantity, 0);
+
+                return (
+                  <div
+                    key={held.id}
+                    className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex justify-between items-center gap-4"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-800">{held.referenceTag}</span>
+                        <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                          {itemCount} items
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        Customer: <span className="font-semibold">{held.customerName}</span> • Total: <span className="font-bold text-emerald-600">{formatCurrency(heldTotal)}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleResumeInvoice(held)}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        <span>Resume</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDiscardInvoice(held.id, held.referenceTag)}
+                        className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-lg border border-rose-200 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Print Receipt Modal */}
+      {printModal.data && (
+        <PrintInvoiceModal
+          isOpen={printModal.isOpen}
+          onClose={printModal.close}
+          invoice={printModal.data}
+        />
+      )}
     </div>
   );
 };
