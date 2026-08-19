@@ -58,15 +58,15 @@ export const reportsService = {
 
     try {
       const params = new URLSearchParams();
-      if (fromDate) {
-        params.append('from', fromDate);
-        params.append('fromDate', fromDate);
+      if (fromDate && fromDate.trim()) {
+        params.append('fromDate', fromDate.trim());
       }
-      if (toDate) {
-        params.append('to', toDate);
-        params.append('toDate', toDate);
+      if (toDate && toDate.trim()) {
+        params.append('toDate', toDate.trim());
       }
-      if (employeeId && employeeId !== 'all') params.append('employeeId', employeeId);
+      if (employeeId && employeeId !== 'all') {
+        params.append('employeeId', employeeId);
+      }
 
       const query = params.toString();
       const endpoints = [
@@ -88,12 +88,12 @@ export const reportsService = {
         // If API returned an array of row objects
         if (Array.isArray(data)) {
           const rows: SalesReportRow[] = data.map((r) => ({
-            date: r.date || r.createdAt || r.day || r.invoiceNumber || new Date().toISOString().split('T')[0],
+            date: r.date ? new Date(r.date).toISOString().split('T')[0] : (r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : 'Today'),
             totalInvoices: Number(r.invoiceCount ?? r.totalInvoices ?? 1),
-            totalSalesBeforeDiscount: Number(r.totalSalesBeforeDiscount ?? r.grossSales ?? r.totalBeforeDiscount ?? 0),
-            totalDiscountAmount: Number(r.totalDiscountAmount ?? r.discountAmount ?? r.discount ?? 0),
-            totalNetSales: Number(r.netSales ?? r.totalNetSales ?? r.totalAfterDiscount ?? 0),
-            totalReturnsAmount: Number(r.totalReturnedAmount ?? r.totalReturnsAmount ?? r.returnsAmount ?? 0),
+            totalSalesBeforeDiscount: Number(r.totalBeforeDiscount ?? r.totalSalesBeforeDiscount ?? r.grossSales ?? 0),
+            totalDiscountAmount: Number(r.totalDiscountAmount ?? (r.totalBeforeDiscount && r.totalAfterDiscount ? r.totalBeforeDiscount - r.totalAfterDiscount : 0)),
+            totalNetSales: Number(r.netTotal ?? r.netSales ?? r.totalAfterDiscount ?? 0),
+            totalReturnsAmount: Number(r.returnedAmount ?? r.totalReturnedAmount ?? r.totalReturnsAmount ?? 0),
             invoiceNumber: r.invoiceNumber,
             customerName: r.customerName,
             employeeName: r.employeeName,
@@ -112,14 +112,14 @@ export const reportsService = {
         }
 
         // If API returned a summary object containing { netSales, invoiceCount, totalReturnedAmount, invoices }
-        const rawInvoices = Array.isArray(data.invoices) ? data.invoices : Array.isArray(data.items) ? data.items : [];
+        const rawInvoices = Array.isArray(data.invoices) ? data.invoices : (Array.isArray(data.items) ? data.items : []);
         const rows: SalesReportRow[] = rawInvoices.map((r: any) => ({
-          date: r.date || r.createdAt || r.day || r.invoiceNumber || new Date().toISOString().split('T')[0],
+          date: r.date ? new Date(r.date).toISOString().split('T')[0] : (r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : 'Today'),
           totalInvoices: Number(r.invoiceCount ?? r.totalInvoices ?? 1),
-          totalSalesBeforeDiscount: Number(r.totalSalesBeforeDiscount ?? r.grossSales ?? r.totalBeforeDiscount ?? 0),
-          totalDiscountAmount: Number(r.totalDiscountAmount ?? r.discountAmount ?? r.discount ?? 0),
-          totalNetSales: Number(r.netSales ?? r.totalNetSales ?? r.totalAfterDiscount ?? 0),
-          totalReturnsAmount: Number(r.totalReturnedAmount ?? r.totalReturnsAmount ?? r.returnsAmount ?? 0),
+          totalSalesBeforeDiscount: Number(r.totalBeforeDiscount ?? r.totalSalesBeforeDiscount ?? r.grossSales ?? 0),
+          totalDiscountAmount: Number(r.totalDiscountAmount ?? (r.totalBeforeDiscount && r.totalAfterDiscount ? r.totalBeforeDiscount - r.totalAfterDiscount : 0)),
+          totalNetSales: Number(r.netTotal ?? r.netSales ?? r.totalAfterDiscount ?? 0),
+          totalReturnsAmount: Number(r.returnedAmount ?? r.totalReturnedAmount ?? r.totalReturnsAmount ?? 0),
           invoiceNumber: r.invoiceNumber,
           customerName: r.customerName,
           employeeName: r.employeeName,
