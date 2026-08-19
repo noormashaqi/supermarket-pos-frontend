@@ -10,6 +10,7 @@ import {
 import {
   reportsService,
   type SalesReportRow,
+  type SalesReportSummary,
   type EmployeeReportData,
   type ProductReportRow,
 } from '../api/services/reportsService';
@@ -33,6 +34,15 @@ export const ReportsPage = () => {
   const [productsList, setProductsList] = useState<Product[]>([]);
 
   const [salesReportData, setSalesReportData] = useState<SalesReportRow[]>([]);
+  const [salesSummary, setSalesSummary] = useState<SalesReportSummary>({
+    netSales: 0,
+    invoiceCount: 0,
+    totalReturnedAmount: 0,
+    totalSalesBeforeDiscount: 0,
+    totalDiscountAmount: 0,
+    invoices: [],
+  });
+
   const [employeeReportData, setEmployeeReportData] = useState<EmployeeReportData[]>([]);
   const [productReportData, setProductReportData] = useState<ProductReportRow[]>([]);
 
@@ -64,8 +74,12 @@ export const ReportsPage = () => {
     setIsLoading(true);
     try {
       if (activeTab === 'sales') {
-        const data = await reportsService.getSalesReport(fromDate, toDate);
-        setSalesReportData(data);
+        const { summary, rows } = await reportsService.getSalesReport(
+          fromDate || undefined,
+          toDate || undefined
+        );
+        setSalesSummary(summary);
+        setSalesReportData(rows.length > 0 ? rows : summary.invoices);
       } else if (activeTab === 'employee') {
         const data = await reportsService.getEmployeeReport(selectedEmployeeId);
         setEmployeeReportData(data);
@@ -86,15 +100,19 @@ export const ReportsPage = () => {
     fetchReports();
   }, [activeTab, fromDate, toDate, selectedEmployeeId, selectedProductId]);
 
-  // Aggregate Metrics Calculations for Header Summaries
-  const totalNetSalesAll = salesReportData.reduce((acc, row) => acc + row.totalNetSales, 0);
-  const totalInvoicesAll = salesReportData.reduce((acc, row) => acc + row.totalInvoices, 0);
-  const totalReturnsAll = salesReportData.reduce((acc, row) => acc + row.totalReturnsAmount, 0);
+  // Fallback Calculations for Header Summaries
+  const displayNetSales = salesSummary.netSales || salesReportData.reduce((acc, row) => acc + row.totalNetSales, 0);
+  const displayInvoiceCount = salesSummary.invoiceCount || salesReportData.reduce((acc, row) => acc + row.totalInvoices, 0);
+  const displayReturnedAmount = salesSummary.totalReturnedAmount || salesReportData.reduce((acc, row) => acc + row.totalReturnsAmount, 0);
 
   const salesColumns: Column<SalesReportRow>[] = [
     {
       header: 'Date / Period',
-      cell: (r) => <span className="font-bold text-slate-800 text-xs">{r.date}</span>,
+      cell: (r) => (
+        <span className="font-bold text-slate-800 text-xs">
+          {r.invoiceNumber ? `#${r.invoiceNumber}` : r.date}
+        </span>
+      ),
     },
     {
       header: 'Invoices Count',
@@ -233,18 +251,18 @@ export const ReportsPage = () => {
       {activeTab === 'sales' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Net Sales</span>
-            <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(totalNetSalesAll)}</p>
+            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Net Sales (netSales)</span>
+            <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(displayNetSales)}</p>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Invoices</span>
-            <p className="text-2xl font-extrabold text-slate-900">{totalInvoicesAll}</p>
+            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Invoices (invoiceCount)</span>
+            <p className="text-2xl font-extrabold text-slate-900">{displayInvoiceCount}</p>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Deducted Returns</span>
-            <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(totalReturnsAll)}</p>
+            <span className="text-xs font-semibold text-slate-500 uppercase block">Total Deducted Returns (totalReturnedAmount)</span>
+            <p className="text-2xl font-extrabold text-slate-900">{formatCurrency(displayReturnedAmount)}</p>
           </div>
         </div>
       )}
@@ -375,7 +393,7 @@ export const ReportsPage = () => {
         <Table
           columns={salesColumns}
           data={salesReportData}
-          keyExtractor={(r) => r.date}
+          keyExtractor={(r: SalesReportRow) => r.invoiceNumber || r.date}
           emptyMessage="No sales data found for the selected date range."
         />
       )}
