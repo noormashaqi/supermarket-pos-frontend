@@ -1,38 +1,35 @@
 import { apiClient } from '../client';
-import type {
-  Product,
-  CreateProductInput,
-  UpdateProductInput,
-  AddStockInput,
-  StockMovement,
-} from '../../types';
+import type { Product, CreateProductInput, UpdateProductInput, AddStockInput, StockMovement, ProductUnit } from '../../types';
 
 export const productsService = {
-  async getProducts(categoryId?: string, activeOnly: boolean = true): Promise<Product[]> {
+  async getProducts(categoryId?: string, activeOnly?: boolean): Promise<Product[]> {
     try {
-      let endpoint = `/api/Products?activeOnly=${activeOnly}`;
-      if (categoryId && categoryId !== 'all') {
-        endpoint += `&categoryId=${categoryId}`;
-      }
+      const endpoint = categoryId && categoryId !== 'all'
+        ? `/api/Products?categoryId=${categoryId}`
+        : '/api/Products';
       const data = await apiClient<any[]>(endpoint);
       if (Array.isArray(data)) {
-        return data.map((p) => ({
+        let prods: Product[] = data.map((p) => ({
           id: String(p.id),
-          name: p.name || 'Product',
+          name: p.name || 'Unnamed Product',
           sellingPrice: p.sellingPrice ?? p.price ?? 0,
           costPrice: p.costPrice ?? 0,
           quantity: p.quantity ?? p.stockQuantity ?? 0,
           minStockLevel: p.minStockLevel ?? 10,
-          unit: (p.unit && p.unit.toLowerCase() === 'package') ? 'package' : 'piece',
-          categoryId: String(p.categoryId || '1'),
+          unit: (p.unit && p.unit.toLowerCase() === 'package' ? 'package' : 'piece') as ProductUnit,
+          categoryId: String(p.categoryId || ''),
           categoryName: p.categoryName || 'General',
-          isActive: p.isActive !== undefined ? p.isActive : true,
+          isActive: Boolean(p.isActive ?? true),
           createdAt: p.createdAt || new Date().toISOString(),
           updatedAt: p.updatedAt || new Date().toISOString(),
         }));
+        if (activeOnly) {
+          prods = prods.filter((p) => p.isActive);
+        }
+        return prods;
       }
     } catch (err) {
-      console.error('Error fetching products from API:', err);
+      console.error('Error fetching products:', err);
     }
     return [];
   },
@@ -43,15 +40,15 @@ export const productsService = {
       if (p && p.id) {
         return {
           id: String(p.id),
-          name: p.name,
+          name: p.name || 'Unnamed Product',
           sellingPrice: p.sellingPrice ?? p.price ?? 0,
           costPrice: p.costPrice ?? 0,
           quantity: p.quantity ?? p.stockQuantity ?? 0,
           minStockLevel: p.minStockLevel ?? 10,
-          unit: (p.unit && p.unit.toLowerCase() === 'package') ? 'package' : 'piece',
-          categoryId: String(p.categoryId || '1'),
+          unit: (p.unit && p.unit.toLowerCase() === 'package' ? 'package' : 'piece') as ProductUnit,
+          categoryId: String(p.categoryId || ''),
           categoryName: p.categoryName || 'General',
-          isActive: p.isActive !== undefined ? p.isActive : true,
+          isActive: Boolean(p.isActive ?? true),
           createdAt: p.createdAt || new Date().toISOString(),
           updatedAt: p.updatedAt || new Date().toISOString(),
         };
@@ -62,88 +59,122 @@ export const productsService = {
     return undefined;
   },
 
-  async createProduct(input: CreateProductInput, _employeeName: string = 'Admin'): Promise<Product> {
-    const p = await apiClient<any>('/api/Products', {
+  async createProduct(input: CreateProductInput, _employeeName?: string): Promise<Product> {
+    const res = await apiClient<any>('/api/Products', {
       method: 'POST',
       body: JSON.stringify({
         name: input.name,
-        categoryId: Number(input.categoryId) || 1,
         sellingPrice: input.sellingPrice,
         costPrice: input.costPrice || 0,
-        minStockLevel: input.minStockLevel || 10,
-        unit: input.unit === 'package' ? 'Package' : 'Piece',
+        initialQuantity: input.initialQuantity || 0,
+        minStockLevel: input.minStockLevel || 0,
+        unit: input.unit || 'piece',
+        categoryId: Number(input.categoryId) || input.categoryId,
       }),
     });
 
+    const realId = res?.id || res?.productId;
+    if (realId) {
+      const fresh = await this.getProductById(String(realId));
+      if (fresh) return fresh;
+    }
+
     return {
-      id: String(p?.id || Date.now()),
-      name: p?.name || input.name,
-      sellingPrice: p?.sellingPrice ?? input.sellingPrice,
-      costPrice: p?.costPrice ?? input.costPrice ?? 0,
-      quantity: p?.quantity ?? 0,
-      minStockLevel: p?.minStockLevel ?? input.minStockLevel ?? 10,
-      unit: input.unit,
-      categoryId: String(input.categoryId),
-      categoryName: p?.categoryName || 'General',
+      id: String(realId || Date.now()),
+      name: input.name,
+      sellingPrice: input.sellingPrice,
+      costPrice: input.costPrice || 0,
+      quantity: input.initialQuantity || 0,
+      minStockLevel: input.minStockLevel || 0,
+      unit: input.unit || 'piece',
+      categoryId: input.categoryId,
+      categoryName: 'General',
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
   },
 
-  async updateProduct(id: string, input: UpdateProductInput, _employeeName: string = 'Admin'): Promise<Product> {
-    const p = await apiClient<any>(`/api/Products/${id}`, {
+  async updateProduct(id: string, input: UpdateProductInput, _employeeName?: string): Promise<Product> {
+    const res = await apiClient<any>(`/api/Products/${id}`, {
       method: 'PUT',
       body: JSON.stringify({
-        ...input,
-        categoryId: input.categoryId ? Number(input.categoryId) : undefined,
-        unit: input.unit ? (input.unit === 'package' ? 'Package' : 'Piece') : undefined,
+        id: Number(id) || id,
+        name: input.name,
+        sellingPrice: input.sellingPrice,
+        costPrice: input.costPrice || 0,
+        minStockLevel: input.minStockLevel || 0,
+        unit: input.unit || 'piece',
+        categoryId: Number(input.categoryId) ? Number(input.categoryId) : input.categoryId,
       }),
     });
 
+    const fresh = await this.getProductById(id);
+    if (fresh) return fresh;
+
     return {
-      id: String(id),
-      name: p?.name || input.name || '',
-      sellingPrice: p?.sellingPrice ?? input.sellingPrice ?? 0,
-      costPrice: p?.costPrice ?? input.costPrice ?? 0,
-      quantity: p?.quantity ?? 0,
-      minStockLevel: p?.minStockLevel ?? input.minStockLevel ?? 10,
+      id,
+      name: input.name || 'Product',
+      sellingPrice: input.sellingPrice || 0,
+      costPrice: input.costPrice || 0,
+      quantity: res?.quantity ?? 0,
+      minStockLevel: input.minStockLevel || 0,
       unit: input.unit || 'piece',
-      categoryId: String(input.categoryId || '1'),
-      categoryName: p?.categoryName || 'General',
+      categoryId: input.categoryId || '1',
+      categoryName: 'General',
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
   },
 
-  async deactivateProduct(id: string, _employeeName: string = 'Admin'): Promise<boolean> {
-    await apiClient(`/api/Products/${id}/deactivate`, {
-      method: 'PATCH',
-    });
-    return true;
+  async deactivateProduct(id: string): Promise<boolean> {
+    try {
+      await apiClient<any>(`/api/Products/${id}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch (err) {
+      console.error('Error deactivating product:', err);
+      return false;
+    }
   },
 
-  async addStock(input: AddStockInput, employeeName: string = 'Current Employee'): Promise<Product> {
-    const p = await apiClient<any>(`/api/Products/${input.productId}/stock/add`, {
-      method: 'POST',
-      body: JSON.stringify({
-        quantityAdded: input.quantityAdded,
-        reason: input.reason,
-        employeeName,
-      }),
-    });
+  async addStock(input: AddStockInput, employeeName: string = 'Inventory Manager'): Promise<Product> {
+    let res: any = null;
+    try {
+      res = await apiClient<any>(`/api/Products/${input.productId}/add-stock`, {
+        method: 'POST',
+        body: JSON.stringify({
+          quantityAdded: input.quantityAdded,
+          reason: input.reason || 'Restock',
+          employeeName,
+        }),
+      });
+    } catch {
+      res = await apiClient<any>(`/api/Products/${input.productId}/stock`, {
+        method: 'POST',
+        body: JSON.stringify({
+          quantity: input.quantityAdded,
+          notes: input.reason || 'Restock',
+          employeeName,
+        }),
+      });
+    }
+
+    const fresh = await this.getProductById(input.productId);
+    if (fresh) return fresh;
 
     return {
-      id: String(input.productId),
-      name: p?.name || 'Product',
-      sellingPrice: p?.sellingPrice ?? 0,
-      costPrice: p?.costPrice ?? 0,
-      quantity: p?.quantity ?? 0,
-      minStockLevel: p?.minStockLevel ?? 10,
-      unit: (p?.unit && p.unit.toLowerCase() === 'package') ? 'package' : 'piece',
-      categoryId: String(p?.categoryId || '1'),
-      categoryName: p?.categoryName || 'General',
+      id: input.productId,
+      name: res?.name || 'Updated Product',
+      sellingPrice: res?.sellingPrice || 0,
+      costPrice: res?.costPrice || 0,
+      quantity: res?.quantity ?? input.quantityAdded,
+      minStockLevel: res?.minStockLevel || 10,
+      unit: 'piece',
+      categoryId: '1',
+      categoryName: 'General',
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -152,22 +183,54 @@ export const productsService = {
 
   async getStockHistory(productId?: string): Promise<StockMovement[]> {
     try {
-      let endpoint = '/api/Products/stock/history';
-      if (productId && productId !== 'all') {
-        endpoint = `/api/Products/${productId}/stock/history`;
+      let data: any[] | null = null;
+      const endpointsToTry = productId && productId !== 'all'
+        ? [
+            `/api/Products/${productId}/stock/history`,
+            `/api/Products/${productId}/stock-history`,
+            `/api/products/${productId}/stock-logs`,
+            `/api/stock-logs?productId=${productId}`,
+            `/api/products/stock-history?productId=${productId}`,
+          ]
+        : [
+            '/api/products/stock-history',
+            '/api/Products/stock/history',
+            '/api/stock-logs',
+            '/api/Products/stock-logs',
+            '/api/Products/stock-history',
+          ];
+
+      for (const endpoint of endpointsToTry) {
+        try {
+          data = await apiClient<any[]>(endpoint);
+          if (Array.isArray(data)) break;
+        } catch {
+          // try next endpoint
+        }
       }
-      const data = await apiClient<any[]>(endpoint);
+
       if (Array.isArray(data)) {
-        return data.map((m) => ({
-          id: String(m.id),
-          productId: String(m.productId),
-          productName: m.productName || 'Product',
-          quantityAdded: m.quantityAdded || 0,
-          employeeId: String(m.employeeId || '1'),
-          employeeName: m.employeeName || 'Staff',
-          reason: m.reason || 'Restock',
-          createdAt: m.createdAt || m.date || new Date().toISOString(),
-        }));
+        return data.map((m, index) => {
+          const rawId = m.id ?? m.Id ?? m.stockLogId ?? m.StockLogId ?? m.logId ?? index;
+          const rawProdId = m.productId ?? m.ProductId ?? m.product?.id ?? productId ?? '';
+          const rawProdName = m.productName ?? m.ProductName ?? m.product?.name ?? 'Product';
+          const rawQty = m.quantityAdded ?? m.QuantityAdded ?? m.quantity ?? m.Quantity ?? 0;
+          const rawEmpId = m.employeeId ?? m.EmployeeId ?? m.employee?.id ?? '1';
+          const rawEmpName = m.employeeName ?? m.EmployeeName ?? m.employee?.fullName ?? m.employee?.username ?? 'Inventory Manager';
+          const rawReason = m.reason ?? m.Reason ?? m.notes ?? m.Notes ?? 'Restock';
+          const rawDate = m.createdAt ?? m.CreatedAt ?? m.date ?? m.Date ?? m.timestamp ?? m.Timestamp ?? new Date().toISOString();
+
+          return {
+            id: String(rawId),
+            productId: String(rawProdId),
+            productName: String(rawProdName),
+            quantityAdded: Number(rawQty),
+            employeeId: String(rawEmpId),
+            employeeName: String(rawEmpName),
+            reason: String(rawReason),
+            createdAt: String(rawDate),
+          };
+        });
       }
     } catch (err) {
       console.error('Error fetching stock history:', err);
