@@ -21,11 +21,12 @@ export const PermissionKeys = {
 export type PermissionKey = typeof PermissionKeys[keyof typeof PermissionKeys] | string;
 
 export interface Employee {
-  id: number;
+  id: number | string;
   fullName: string;
   username: string;
   role: EmployeeRole;
   isActive: boolean;
+  permissions?: string[];
   createdAt: string;
 }
 

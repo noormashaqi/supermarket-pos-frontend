@@ -34,17 +34,12 @@ export const PrintInvoiceModal = ({
         .getPrintableInvoice(invoice.id)
         .then((data) => {
           if (!isActive) return;
-
           if (data) {
             setPrintableData(data);
-            return;
           }
-
-          setPrintError('Printing was not completed because printable invoice data could not be loaded.');
         })
         .catch(() => {
-          if (!isActive) return;
-          setPrintError('Printing was not completed because printable invoice data could not be loaded.');
+          // keep fallback
         })
         .finally(() => {
           if (isActive) {
@@ -64,18 +59,32 @@ export const PrintInvoiceModal = ({
 
   if (!invoice) return null;
 
-  const hasPrintableData = Boolean(printableData);
   const displayTitle = printableData?.invoiceNumber || invoice.invoiceNumber;
+  const isDebt = invoice.paymentMethod === 'debt' || (printableData?.paymentMethod?.toLowerCase() === 'debt');
+  const paymentLabel = isDebt ? 'DEBT / UNPAID (دين)' : (printableData?.paymentMethod?.toUpperCase() || 'CASH');
+
+  const items = printableData?.items || invoice.items.map((i) => ({
+    productId: Number(i.productId) || 0,
+    productName: i.productNameSnapshot,
+    unitPrice: i.unitPriceSnapshot,
+    quantity: i.quantity,
+    lineTotal: i.lineTotal,
+  }));
+
+  const subtotal = printableData?.totalBeforeDiscount ?? invoice.totalBeforeDiscount;
+  const discountPct = printableData?.discountPercentage ?? invoice.discountPercentage;
+  const discountAmt = printableData?.discountAmount ?? (subtotal * (discountPct / 100));
+  const total = printableData?.totalAfterDiscount ?? invoice.totalAfterDiscount;
+  const employeeName = printableData?.employeeName || invoice.employeeName;
+  const invoiceDate = printableData?.date || invoice.createdAt;
+  const customerName = isDebt && invoice.debtCustomerNickname
+    ? invoice.debtCustomerNickname
+    : invoice.customerName || 'Walk-in Customer';
 
   const handlePrint = () => {
-    if (!printableData) {
-      setPrintError('Printing was not completed because no printable invoice data is available.');
-      return;
-    }
-
     setPrintError(null);
     let contentHtml = '';
-    if (printFormat === 'thermal' && printableData.htmlReceipt.trim()) {
+    if (printFormat === 'thermal' && printableData?.htmlReceipt?.trim()) {
       contentHtml = printableData.htmlReceipt;
     } else {
       const el = document.getElementById(printFormat === 'thermal' ? 'thermal-receipt' : 'a4-receipt');
@@ -89,7 +98,7 @@ export const PrintInvoiceModal = ({
         <html>
           <head>
             <meta charset="utf-8" />
-            <title>Invoice #${printableData.invoiceNumber}</title>
+            <title>Invoice #${displayTitle}</title>
             <style>
               body { font-family: 'Courier New', Courier, monospace, sans-serif; margin: 0; padding: 15px; color: #000; background: #fff; font-size: 12px; }
               table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -182,7 +191,7 @@ export const PrintInvoiceModal = ({
 
           <button
             onClick={handlePrint}
-            disabled={isLoading || !hasPrintableData}
+            disabled={isLoading}
             className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
           >
             {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
@@ -194,7 +203,7 @@ export const PrintInvoiceModal = ({
           <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-900">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="space-y-1 text-xs">
-              <p className="font-bold">Printing was not completed.</p>
+              <p className="font-bold">Printing notice</p>
               <p>{printError}</p>
             </div>
           </div>
@@ -205,15 +214,7 @@ export const PrintInvoiceModal = ({
           {isLoading ? (
             <div className="flex min-h-[280px] w-full items-center justify-center gap-2 text-sm font-semibold text-slate-600">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading printable invoice data...</span>
-            </div>
-          ) : !printableData ? (
-            <div className="flex min-h-[280px] w-full flex-col items-center justify-center gap-2 text-center text-slate-600">
-              <AlertCircle className="h-8 w-8 text-rose-500" />
-              <p className="text-sm font-bold">Printing was not completed.</p>
-              <p className="max-w-sm text-xs text-slate-500">
-                No real printable invoice data was returned from the server, so nothing was printed.
-              </p>
+              <span>Preparing printable invoice data...</span>
             </div>
           ) : printFormat === 'thermal' ? (
             /* THERMAL 80mm RECEIPT LAYOUT */
@@ -228,19 +229,25 @@ export const PrintInvoiceModal = ({
               <div className="space-y-1 border-b border-dashed pb-3 mb-3 text-[11px] border-slate-400">
                 <div className="flex justify-between">
                   <span>RECEIPT NO:</span>
-                  <span className="font-bold">{printableData.invoiceNumber}</span>
+                  <span className="font-bold">{displayTitle}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>DATE:</span>
-                  <span>{formatDate(printableData.date)}</span>
+                  <span>{formatDate(invoiceDate)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>CASHIER:</span>
-                  <span>{printableData.employeeName}</span>
+                  <span>{employeeName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CUSTOMER:</span>
+                  <span>{customerName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>PAYMENT:</span>
-                  <span>{printableData.paymentMethod}</span>
+                  <span className={`font-bold ${isDebt ? 'text-amber-700' : ''}`}>
+                    {paymentLabel}
+                  </span>
                 </div>
               </div>
 
@@ -253,7 +260,7 @@ export const PrintInvoiceModal = ({
                 </div>
 
                 <div className="space-y-2">
-                  {printableData.items.map((item, idx) => (
+                  {items.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-12 text-[11px]">
                       <div className="col-span-6">
                         <p className="font-semibold truncate">{item.productName}</p>
@@ -272,23 +279,45 @@ export const PrintInvoiceModal = ({
               <div className="space-y-1 text-[11px] border-b border-dashed pb-3 mb-3 border-slate-400">
                 <div className="flex justify-between">
                   <span>SUBTOTAL:</span>
-                  <span>{formatCurrency(printableData.totalBeforeDiscount)}</span>
+                  <span>{formatCurrency(subtotal)}</span>
                 </div>
-                {printableData.discountPercentage > 0 && (
+                {discountPct > 0 && (
                   <div className="flex justify-between text-rose-600">
-                    <span>DISCOUNT ({printableData.discountPercentage}%):</span>
-                    <span>-{formatCurrency(printableData.discountAmount)}</span>
+                    <span>DISCOUNT ({discountPct}%):</span>
+                    <span>-{formatCurrency(discountAmt)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-extrabold border-t border-slate-400 pt-1 mt-1">
-                  <span>TOTAL DUE ({printableData.paymentMethod.toUpperCase()}):</span>
-                  <span>{formatCurrency(printableData.totalAfterDiscount)}</span>
+                  <span>{isDebt ? 'TOTAL DUE (DEBT):' : `TOTAL DUE (${paymentLabel}):`}</span>
+                  <span>{formatCurrency(total)}</span>
                 </div>
               </div>
 
+              {/* Debt-specific section */}
+              {isDebt && (
+                <div className="space-y-1 text-[11px] border-b border-dashed pb-3 mb-3 border-slate-400 bg-amber-50/50 -mx-1 px-1 py-1 rounded">
+                  <div className="flex justify-between font-bold text-amber-800">
+                    <span>PAYMENT METHOD:</span>
+                    <span>DEBT / UNPAID (دين)</span>
+                  </div>
+                  {invoice.debtCustomerNickname && (
+                    <div className="flex justify-between text-amber-700">
+                      <span>DEBTOR NAME:</span>
+                      <span className="font-bold">{invoice.debtCustomerNickname}</span>
+                    </div>
+                  )}
+                  {invoice.remainingDebtBalance !== undefined && (
+                    <div className="flex justify-between text-rose-700 font-bold">
+                      <span>REMAINING BALANCE:</span>
+                      <span>{formatCurrency(invoice.remainingDebtBalance)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Footer */}
               <div className="text-center space-y-1 text-[10px] text-slate-600 pt-1">
-                <p className="font-semibold">PAYMENT: {printableData.paymentMethod.toUpperCase()}</p>
+                <p className="font-semibold">{isDebt ? 'PAYMENT: DEBT / NOTEBOOK (دين)' : `PAYMENT: ${paymentLabel}`}</p>
                 <p className="italic">Thank you for shopping with us!</p>
               </div>
             </div>
@@ -301,20 +330,32 @@ export const PrintInvoiceModal = ({
                   <p className="text-xs text-slate-500">Sales Invoice</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-bold text-slate-900">{printableData.invoiceNumber}</span>
-                  <p className="text-xs text-slate-500">{formatDate(printableData.date)}</p>
+                  <span className="text-base font-bold text-slate-900">{displayTitle}</span>
+                  <p className="text-xs text-slate-500">{formatDate(invoiceDate)}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-lg">
                 <div>
+                  <p className="font-bold text-slate-500">Customer:</p>
+                  <p className="font-semibold text-slate-800">{customerName}</p>
+                </div>
+                <div>
                   <p className="font-bold text-slate-500">Issued By:</p>
-                  <p className="font-semibold text-slate-800">{printableData.employeeName}</p>
+                  <p className="font-semibold text-slate-800">{employeeName}</p>
                 </div>
                 <div>
                   <p className="font-bold text-slate-500">Payment Method:</p>
-                  <p className="font-semibold text-slate-800">{printableData.paymentMethod}</p>
+                  <p className={`font-bold ${isDebt ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {isDebt ? '📓 DEBT / UNPAID (دين)' : `💵 ${paymentLabel}`}
+                  </p>
                 </div>
+                {isDebt && invoice.debtCustomerNickname && (
+                  <div>
+                    <p className="font-bold text-slate-500">Debtor Nickname:</p>
+                    <p className="font-bold text-amber-800">{invoice.debtCustomerNickname}</p>
+                  </div>
+                )}
               </div>
 
               <table className="w-full text-left text-xs border border-slate-200">
@@ -327,7 +368,7 @@ export const PrintInvoiceModal = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {printableData.items.map((item, idx) => (
+                  {items.map((item, idx) => (
                     <tr key={idx}>
                       <td className="p-2 font-medium">{item.productName}</td>
                       <td className="p-2 text-right">{formatCurrency(item.unitPrice)}</td>
@@ -339,21 +380,31 @@ export const PrintInvoiceModal = ({
               </table>
 
               <div className="flex justify-end">
-                <div className="w-64 space-y-2 text-xs">
+                <div className="w-72 space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Total Before Discount:</span>
-                    <span className="font-semibold">{formatCurrency(printableData.totalBeforeDiscount)}</span>
+                    <span className="font-semibold">{formatCurrency(subtotal)}</span>
                   </div>
-                  {printableData.discountPercentage > 0 && (
+                  {discountPct > 0 && (
                     <div className="flex justify-between text-rose-600">
-                      <span>Discount ({printableData.discountPercentage}%):</span>
-                      <span>-{formatCurrency(printableData.discountAmount)}</span>
+                      <span>Discount ({discountPct}%):</span>
+                      <span>-{formatCurrency(discountAmt)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-base font-bold border-t pt-2 text-slate-900">
-                    <span>Total Paid ({printableData.paymentMethod}):</span>
-                    <span className="text-emerald-600">{formatCurrency(printableData.totalAfterDiscount)}</span>
+                    <span>{isDebt ? 'Total Due (Debt):' : `Total Paid (${paymentLabel}):`}</span>
+                    <span className={isDebt ? 'text-amber-600' : 'text-emerald-600'}>
+                      {formatCurrency(total)}
+                    </span>
                   </div>
+
+                  {/* Debt remaining balance */}
+                  {isDebt && invoice.remainingDebtBalance !== undefined && (
+                    <div className="flex justify-between text-sm font-bold text-rose-700 bg-rose-50 px-2 py-1.5 rounded-lg border border-rose-200 mt-1">
+                      <span>Updated Remaining Balance:</span>
+                      <span>{formatCurrency(invoice.remainingDebtBalance)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -20,7 +20,7 @@ export const employeesService = {
   },
 
   updateEmployeePermissions: async (
-    id: string,
+    id: string | number,
     permissions: string[]
   ): Promise<Employee> => {
     return await apiClient<Employee>(`/employees/${id}/permissions`, {
@@ -29,7 +29,7 @@ export const employeesService = {
     });
   },
 
-  deactivateEmployee: async (id: string): Promise<void> => {
+  deactivateEmployee: async (id: string | number): Promise<void> => {
     await apiClient(`/employees/${id}/deactivate`, {
       method: 'PATCH',
     });

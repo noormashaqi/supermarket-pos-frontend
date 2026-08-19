@@ -20,6 +20,10 @@ export interface Invoice {
   hasReturn: boolean;
   isFullyReturned: boolean;
   createdAt: string;
+  paymentMethod: 'cash' | 'debt';
+  debtCustomerId?: string;
+  debtCustomerNickname?: string;
+  remainingDebtBalance?: number;
 }
 
 export interface CreateInvoiceInput {
@@ -30,4 +34,6 @@ export interface CreateInvoiceInput {
     quantity: number;
     unitPrice?: number;
   }>;
+  paymentMethod?: 'cash' | 'debt';
+  debtCustomerId?: string;
 }

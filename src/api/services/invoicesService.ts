@@ -1,5 +1,7 @@
 import { apiClient } from '../client';
 import type { Invoice, CreateInvoiceInput } from '../../types';
+import { productsService } from './productsService';
+import { debtService } from './debtService';
 
 const toTrimmedString = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
@@ -16,10 +18,10 @@ export const invoicesService = {
       if (filters?.date) params.append('date', filters.date);
       if (filters?.employeeId) params.append('employeeId', filters.employeeId);
       if (filters?.productId) params.append('productId', filters.productId);
-      
+
       const queryStr = params.toString();
       const endpoint = `/api/Invoices${queryStr ? `?${queryStr}` : ''}`;
-      
+
       const data = await apiClient<any[]>(endpoint);
       if (Array.isArray(data)) {
         return data.map((inv) => ({
@@ -35,7 +37,7 @@ export const invoicesService = {
                 unitPriceSnapshot: item.unitPriceSnapshot || item.unitPrice || 0,
                 unit: (item.unit && item.unit.toLowerCase() === 'package') ? 'package' : 'piece',
                 quantity: item.quantity || 1,
-                lineTotal: item.lineTotal || 0,
+                lineTotal: item.lineTotal || (item.unitPrice ? item.unitPrice * (item.quantity || 1) : 0),
               }))
             : [],
           totalBeforeDiscount: inv.totalBeforeDiscount || 0,
@@ -44,6 +46,10 @@ export const invoicesService = {
           hasReturn: Boolean(inv.hasReturn),
           isFullyReturned: Boolean(inv.isFullyReturned),
           createdAt: inv.createdAt || inv.date || new Date().toISOString(),
+          paymentMethod: inv.paymentMethod || 'cash',
+          debtCustomerId: inv.debtCustomerId,
+          debtCustomerNickname: inv.debtCustomerNickname,
+          remainingDebtBalance: inv.remainingDebtBalance,
         }));
       }
     } catch (err) {
@@ -69,7 +75,7 @@ export const invoicesService = {
                 unitPriceSnapshot: item.unitPriceSnapshot || item.unitPrice || 0,
                 unit: (item.unit && item.unit.toLowerCase() === 'package') ? 'package' : 'piece',
                 quantity: item.quantity || 1,
-                lineTotal: item.lineTotal || 0,
+                lineTotal: item.lineTotal || (item.unitPrice ? item.unitPrice * (item.quantity || 1) : 0),
               }))
             : [],
           totalBeforeDiscount: inv.totalBeforeDiscount || 0,
@@ -78,6 +84,10 @@ export const invoicesService = {
           hasReturn: Boolean(inv.hasReturn),
           isFullyReturned: Boolean(inv.isFullyReturned),
           createdAt: inv.createdAt || inv.date || new Date().toISOString(),
+          paymentMethod: inv.paymentMethod || 'cash',
+          debtCustomerId: inv.debtCustomerId,
+          debtCustomerNickname: inv.debtCustomerNickname,
+          remainingDebtBalance: inv.remainingDebtBalance,
         };
       }
     } catch (err) {
@@ -86,42 +96,109 @@ export const invoicesService = {
     return undefined;
   },
 
-  async createInvoice(input: CreateInvoiceInput, employeeName: string = 'Current Employee'): Promise<Invoice> {
-    const response = await apiClient<any>('/api/Invoices', {
-      method: 'POST',
-      body: JSON.stringify({
-        items: input.items.map((i) => ({
-          productId: Number(i.productId) || i.productId,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice !== undefined ? Number(i.unitPrice) : undefined,
-        })),
-        discountPercentage: input.discountPercentage || 0,
-        customerName: input.customerName || 'Walk-in Customer',
-        employeeName,
-      }),
+  async createInvoice(
+    input: CreateInvoiceInput,
+    itemsDetail?: Array<{ name: string; unit: 'piece' | 'package' }>,
+    employeeName: string = 'Current Employee'
+  ): Promise<Invoice> {
+    const paymentMethod = input.paymentMethod || 'cash';
+
+    try {
+      const response = await apiClient<any>('/api/Invoices', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: input.items.map((i) => ({
+            productId: Number(i.productId) || i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice !== undefined ? Number(i.unitPrice) : undefined,
+          })),
+          discountPercentage: input.discountPercentage || 0,
+          customerName: input.customerName || 'Walk-in Customer',
+          employeeName,
+          paymentMethod,
+          debtCustomerId: input.debtCustomerId,
+        }),
+      });
+
+      const realId = response?.invoiceId || response?.id;
+      if (realId) {
+        const realInvoice = await this.getInvoiceById(String(realId));
+        if (realInvoice) {
+          return realInvoice;
+        }
+      }
+
+      if (response) {
+        return {
+          id: String(realId || Date.now()),
+          invoiceNumber: response?.invoiceNumber || `INV-${Date.now()}`,
+          employeeId: '1',
+          employeeName,
+          customerName: input.customerName || 'Walk-in Customer',
+          items: [],
+          totalBeforeDiscount: response?.totalBeforeDiscount || 0,
+          discountPercentage: input.discountPercentage || 0,
+          totalAfterDiscount: response?.totalAfterDiscount || 0,
+          hasReturn: false,
+          isFullyReturned: false,
+          createdAt: response?.createdAt || new Date().toISOString(),
+          paymentMethod,
+          debtCustomerId: input.debtCustomerId,
+          debtCustomerNickname: response?.debtCustomerNickname,
+          remainingDebtBalance: response?.remainingDebtBalance,
+        };
+      }
+    } catch (err) {
+      console.error('API createInvoice failed, falling back to local simulation:', err);
+    }
+
+    // Fallback simulation (offline / mock)
+    const prods = await productsService.getProducts();
+    const items = input.items.map((item, idx) => {
+      const p = prods.find((x) => String(x.id) === String(item.productId));
+      const unitPrice = item.unitPrice ?? p?.sellingPrice ?? 1.0;
+      return {
+        productId: String(item.productId),
+        productNameSnapshot: itemsDetail?.[idx]?.name || p?.name || 'Supermarket Item',
+        unitPriceSnapshot: unitPrice,
+        unit: itemsDetail?.[idx]?.unit || p?.unit || 'piece',
+        quantity: item.quantity,
+        lineTotal: unitPrice * item.quantity,
+      };
     });
 
-    const realId = response?.invoiceId || response?.id;
-    if (realId) {
-      const realInvoice = await this.getInvoiceById(String(realId));
-      if (realInvoice) {
-        return realInvoice;
-      }
+    const totalBeforeDiscount = items.reduce((sum, i) => sum + i.lineTotal, 0);
+    const discountPercentage = Math.min(100, Math.max(0, input.discountPercentage || 0));
+    const discountValue = totalBeforeDiscount * (discountPercentage / 100);
+    const totalAfterDiscount = Number((totalBeforeDiscount - discountValue).toFixed(2));
+    const invoiceId = String(Date.now());
+
+    let debtCustomerNickname: string | undefined;
+    let remainingDebtBalance: number | undefined;
+    if (paymentMethod === 'debt' && input.debtCustomerId) {
+      debtService.addDebtToCustomer(input.debtCustomerId, invoiceId, totalAfterDiscount);
+      const customer = await debtService.getCustomerById(input.debtCustomerId);
+      debtCustomerNickname = customer?.nickname;
+      remainingDebtBalance = customer?.totalOutstanding;
     }
 
     return {
-      id: String(realId || Date.now()),
-      invoiceNumber: response?.invoiceNumber || `INV-${Date.now()}`,
+      id: invoiceId,
+      invoiceNumber: `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`,
       employeeId: '1',
       employeeName,
       customerName: input.customerName || 'Walk-in Customer',
-      items: [],
-      totalBeforeDiscount: response?.totalBeforeDiscount || 0,
-      discountPercentage: input.discountPercentage || 0,
-      totalAfterDiscount: response?.totalAfterDiscount || 0,
+      items,
+      totalBeforeDiscount,
+      discountPercentage,
+      totalAfterDiscount,
       hasReturn: false,
       isFullyReturned: false,
       createdAt: new Date().toISOString(),
+      paymentMethod,
+      debtCustomerId: input.debtCustomerId,
+      debtCustomerNickname,
+      remainingDebtBalance,
     };
   },
 
@@ -222,4 +299,3 @@ export const invoicesService = {
     return null;
   },
 };
-

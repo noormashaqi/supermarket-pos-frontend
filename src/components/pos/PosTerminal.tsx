@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -7,22 +7,30 @@ import {
   Printer,
   ShoppingBag,
   Percent,
+  Banknote,
+  BookOpen,
+  UserPlus,
+  ChevronDown,
+  ShieldAlert,
   Pause,
   Play,
   Edit2,
   ShieldCheck,
   Check,
 } from 'lucide-react';
-import type { Product, Category, Invoice } from '../../types';
+import type { Product, Category, Invoice, DebtCustomer } from '../../types';
 import { productsService } from '../../api/services/productsService';
 import { categoriesService } from '../../api/services/categoriesService';
 import { invoicesService } from '../../api/services/invoicesService';
+import { debtService } from '../../api/services/debtService';
 import { formatCurrency, getSession, hasPermission } from '../../utils';
 import { PermissionKeys } from '../../types/employees';
 import { PrintInvoiceModal } from '../invoices/PrintInvoiceModal';
+import { AddCustomerModal } from './AddCustomerModal';
 import { SupervisorOverrideModal } from './SupervisorOverrideModal';
 import { ToastContainer, type ToastMessage, Modal } from '../common';
 import { useModal } from '../../hooks';
+import { useSession } from '../../hooks/useSession';
 
 interface CartItem {
   product: Product;
@@ -44,7 +52,7 @@ export const PosTerminal = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Held Invoices State
   const [heldInvoices, setHeldInvoices] = useState<HeldInvoice[]>([]);
   const [isHeldModalOpen, setIsHeldModalOpen] = useState(false);
@@ -55,12 +63,31 @@ export const PosTerminal = () => {
   const [discountPercentage, setDiscountPercentage] = useState('0'); // % Percentage only!
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Payment Method State
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'debt'>('cash');
+  const [debtCustomers, setDebtCustomers] = useState<DebtCustomer[]>([]);
+  const [selectedDebtCustomer, setSelectedDebtCustomer] = useState<DebtCustomer | null>(null);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+
   // Price Override & Supervisor Authorization State
   const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
   const [tempPriceInput, setTempPriceInput] = useState<string>('');
   const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
   const [pendingOverrideItem, setPendingOverrideItem] = useState<{ productId: string; targetPrice: number } | null>(null);
   const [authorizedSupervisorName, setAuthorizedSupervisorName] = useState<string | null>(null);
+
+  // Session & Permissions
+  const { session } = useSession();
+  const canManageDebt = hasPermission('debt.manage', session.permissions) || hasPermission('admin', session.permissions) || session.role === 'admin' || session.role === 'Admin';
+
+  const canOverridePrice =
+    hasPermission(PermissionKeys.InvoicesOverridePrice) ||
+    hasPermission(PermissionKeys.SalesPriceOverride) ||
+    hasPermission('invoices.override_price') ||
+    hasPermission('sales.price_override') ||
+    Boolean(authorizedSupervisorName);
 
   // Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -77,12 +104,8 @@ export const PosTerminal = () => {
   // Print Modal
   const printModal = useModal<Invoice>();
 
-  const canOverridePrice =
-    hasPermission(PermissionKeys.InvoicesOverridePrice) ||
-    hasPermission(PermissionKeys.SalesPriceOverride) ||
-    hasPermission('invoices.override_price') ||
-    hasPermission('sales.price_override') ||
-    Boolean(authorizedSupervisorName);
+  // Add Customer Modal
+  const addCustomerModal = useModal();
 
   const loadPosData = async () => {
     const [prods, cats] = await Promise.all([
@@ -93,8 +116,15 @@ export const PosTerminal = () => {
     setCategories(cats);
   };
 
+  const loadDebtCustomers = async () => {
+    const customers = await debtService.getCustomers();
+    setDebtCustomers(customers);
+  };
+
   useEffect(() => {
     loadPosData();
+    loadDebtCustomers();
+
     try {
       const stored = localStorage.getItem('supermarket_held_invoices');
       if (stored) {
@@ -103,6 +133,17 @@ export const PosTerminal = () => {
     } catch (err) {
       console.error('Error loading held invoices:', err);
     }
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleHoldInvoice = () => {
@@ -115,7 +156,7 @@ export const PosTerminal = () => {
       'Enter an optional reference tag/note for this paused order:',
       `Customer ${heldInvoices.length + 1}`
     );
-    if (tag === null) return; // Cancel clicked
+    if (tag === null) return;
 
     const referenceTag = tag.trim() || `Customer ${heldInvoices.length + 1}`;
     const newHeld: HeldInvoice = {
@@ -131,7 +172,6 @@ export const PosTerminal = () => {
     setHeldInvoices(updated);
     localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
 
-    // Clear active cart state
     setCart([]);
     setDiscountPercentage('0');
     setCustomerName('Walk-in Customer');
@@ -151,7 +191,6 @@ export const PosTerminal = () => {
     setCustomerName(held.customerName || 'Walk-in Customer');
     setDiscountPercentage(held.discountPercentage || '0');
 
-    // Remove from heldInvoices
     const updated = heldInvoices.filter((item) => item.id !== held.id);
     setHeldInvoices(updated);
     localStorage.setItem('supermarket_held_invoices', JSON.stringify(updated));
@@ -217,7 +256,6 @@ export const PosTerminal = () => {
     setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId));
   };
 
-  // Price Override Actions
   const getItemUnitPrice = (item: CartItem) => item.unitPrice ?? item.product.sellingPrice;
 
   const startEditUnitPrice = (item: CartItem) => {
@@ -235,7 +273,6 @@ export const PosTerminal = () => {
     }
 
     if (canOverridePrice) {
-      // Authorized User Flow: Direct unit price edit in cart row
       setCart((prev) =>
         prev.map((item) =>
           item.product.id === productId ? { ...item, unitPrice: parsedPrice } : item
@@ -244,7 +281,6 @@ export const PosTerminal = () => {
       setEditingPriceProductId(null);
       addToast('success', 'Unit price updated successfully!');
     } else {
-      // Unauthorized User Flow: Trigger supervisor override modal
       setPendingOverrideItem({ productId, targetPrice: parsedPrice });
       setIsSupervisorModalOpen(true);
       setEditingPriceProductId(null);
@@ -266,7 +302,7 @@ export const PosTerminal = () => {
     setPendingOverrideItem(null);
   };
 
-  // Calculations (Percentage discount on invoice level only, NO tax)
+  // Calculations
   const totalBeforeDiscount = cart.reduce(
     (sum, item) => sum + getItemUnitPrice(item) * item.quantity,
     0
@@ -275,9 +311,40 @@ export const PosTerminal = () => {
   const discountValue = totalBeforeDiscount * (discountPctNum / 100);
   const totalAfterDiscount = Number((totalBeforeDiscount - discountValue).toFixed(2));
 
+  const handlePaymentMethodChange = (method: 'cash' | 'debt') => {
+    if (method === 'debt' && !canManageDebt) {
+      addToast('error', '⛔ Access denied — "debt.manage" permission required. Login as admin.');
+      return;
+    }
+    setPaymentMethod(method);
+    if (method === 'cash') {
+      setSelectedDebtCustomer(null);
+      setCustomerSearchTerm('');
+      setShowCustomerDropdown(false);
+    }
+  };
+
+  const handleSelectDebtCustomer = (customer: DebtCustomer) => {
+    setSelectedDebtCustomer(customer);
+    setCustomerSearchTerm(customer.nickname);
+    setShowCustomerDropdown(false);
+    setCustomerName(customer.nickname);
+  };
+
+  const handleCustomerCreated = (customer: DebtCustomer) => {
+    setDebtCustomers((prev) => [...prev, customer]);
+    handleSelectDebtCustomer(customer);
+    addToast('success', `Customer "${customer.nickname}" created & selected!`);
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       addToast('error', 'Cannot checkout an empty invoice!');
+      return;
+    }
+
+    if (paymentMethod === 'debt' && !selectedDebtCustomer) {
+      addToast('error', 'Please select a customer for the debt sale!');
       return;
     }
 
@@ -290,26 +357,40 @@ export const PosTerminal = () => {
 
     setIsSubmitting(true);
     try {
-      const session = getSession();
-      const currentEmployeeName = session ? (session.fullName || session.username) : 'Cashier';
+      const activeSession = getSession();
+      const currentEmployeeName = activeSession ? (activeSession.fullName || activeSession.username) : 'Cashier';
 
       const invoiceData = await invoicesService.createInvoice(
         {
-          customerName,
+          customerName: paymentMethod === 'debt' && selectedDebtCustomer
+            ? selectedDebtCustomer.nickname
+            : customerName,
           discountPercentage: discountPctNum,
           items: cart.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
             unitPrice: getItemUnitPrice(item),
           })),
+          paymentMethod,
+          debtCustomerId: selectedDebtCustomer?.id,
         },
+        cart.map((item) => ({
+          name: item.product.name,
+          unit: item.product.unit,
+        })),
         currentEmployeeName
       );
 
       setCart([]);
       setDiscountPercentage('0');
+      setPaymentMethod('cash');
+      setSelectedDebtCustomer(null);
+      setCustomerSearchTerm('');
       await loadPosData();
-      addToast('success', `Invoice #${invoiceData.invoiceNumber} created & saved successfully!`);
+      await loadDebtCustomers();
+
+      const methodLabel = invoiceData.paymentMethod === 'debt' ? '(DEBT)' : '(CASH)';
+      addToast('success', `Invoice #${invoiceData.invoiceNumber} ${methodLabel} created & saved successfully!`);
       printModal.open(invoiceData);
     } catch (err: any) {
       addToast('error', `Checkout failed: ${err.message || 'Error occurred'}`);
@@ -323,6 +404,10 @@ export const PosTerminal = () => {
     const matchesCat = selectedCategory === 'all' || p.categoryId === selectedCategory;
     return matchesSearch && matchesCat;
   });
+
+  const filteredDebtCustomers = debtCustomers.filter((c) =>
+    c.nickname.toLowerCase().includes(customerSearchTerm.toLowerCase())
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-130px)] min-h-[600px]">
@@ -344,7 +429,7 @@ export const PosTerminal = () => {
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
-              className="text-xs text-slate-400 hover:text-slate-600 px-2"
+              className="text-xs text-slate-400 hover:text-slate-600 px-2 cursor-pointer"
             >
               Clear
             </button>
@@ -494,19 +579,166 @@ export const PosTerminal = () => {
           </div>
         </div>
 
-        {/* Customer Name */}
+        {/* ─── Payment Method Toggle ─── */}
         <div className="my-3">
-          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-            Customer Name
+          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">
+            Payment Method (طريقة الدفع)
           </label>
-          <input
-            type="text"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="Walk-in Customer"
-            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handlePaymentMethodChange('cash')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                paymentMethod === 'cash'
+                  ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+              }`}
+            >
+              <Banknote className="w-4 h-4" />
+              <span>Cash (نقد)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePaymentMethodChange('debt')}
+              disabled={!canManageDebt}
+              title={!canManageDebt ? 'Requires debt.manage permission — login as admin' : 'Record as debt / notebook sale'}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                !canManageDebt
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 opacity-60'
+                  : paymentMethod === 'debt'
+                  ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300 cursor-pointer'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 cursor-pointer'
+              }`}
+            >
+              {!canManageDebt ? (
+                <ShieldAlert className="w-4 h-4" />
+              ) : (
+                <BookOpen className="w-4 h-4" />
+              )}
+              <span>Debt / دين</span>
+            </button>
+          </div>
+
+          {!canManageDebt && (
+            <p className="text-[10px] text-amber-600 mt-1.5 flex items-center gap-1 font-medium">
+              <ShieldAlert className="w-3 h-3" />
+              Debt sales require "debt.manage" permission. Login as admin to enable.
+            </p>
+          )}
         </div>
+
+        {/* ─── Debt Customer Selector (shown only when Debt is selected) ─── */}
+        {paymentMethod === 'debt' && (
+          <div className="mb-3 space-y-2">
+            <label className="block text-[10px] font-bold uppercase text-slate-500">
+              Select Debt Customer (اختر الزبون)
+            </label>
+            <div className="relative" ref={customerDropdownRef}>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={customerSearchTerm}
+                  onChange={(e) => {
+                    setCustomerSearchTerm(e.target.value);
+                    setShowCustomerDropdown(true);
+                    if (!e.target.value) setSelectedDebtCustomer(null);
+                  }}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  placeholder="Search customer by nickname..."
+                  className="w-full pl-9 pr-8 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
+                />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+              </div>
+
+              {/* Dropdown List */}
+              {showCustomerDropdown && (
+                <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                  {filteredDebtCustomers.length === 0 ? (
+                    <div className="p-3 text-center text-[11px] text-slate-400">
+                      No customers found
+                    </div>
+                  ) : (
+                    filteredDebtCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleSelectDebtCustomer(c)}
+                        className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors cursor-pointer flex justify-between items-center ${
+                          selectedDebtCustomer?.id === c.id ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                        }`}
+                      >
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{c.nickname}</p>
+                          {c.phone && (
+                            <p className="text-[10px] text-slate-400">{c.phone}</p>
+                          )}
+                        </div>
+                        {c.totalOutstanding > 0 && (
+                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
+                            {formatCurrency(c.totalOutstanding)}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+
+                  {/* Add New Customer Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomerDropdown(false);
+                      addCustomerModal.open();
+                    }}
+                    className="w-full text-left px-3 py-2.5 border-t border-slate-100 hover:bg-emerald-50 transition-colors cursor-pointer flex items-center gap-2 text-emerald-700"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span className="text-xs font-bold">+ Add New Customer / Nickname</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Selected customer badge */}
+            {selectedDebtCustomer && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl">
+                <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-amber-800">{selectedDebtCustomer.nickname}</p>
+                  <p className="text-[10px] text-amber-600">
+                    Current debt: {formatCurrency(selectedDebtCustomer.totalOutstanding)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDebtCustomer(null);
+                    setCustomerSearchTerm('');
+                  }}
+                  className="text-amber-400 hover:text-amber-600 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Customer Name (shown only for cash payments) */}
+        {paymentMethod === 'cash' && (
+          <div className="my-3">
+            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+              Customer Name
+            </label>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Walk-in Customer"
+              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            />
+          </div>
+        )}
 
         {/* Cart Items List */}
         <div className="flex-1 overflow-y-auto my-2 space-y-2 pr-1">
@@ -530,7 +762,7 @@ export const PosTerminal = () => {
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0 mr-2">
                       <p className="text-xs font-bold text-slate-800 truncate">{item.product.name}</p>
-                      
+
                       {/* Price Row with Direct Edit / Override Button */}
                       <div className="flex items-center gap-1.5 mt-0.5">
                         {isEditingThis ? (
@@ -559,7 +791,7 @@ export const PosTerminal = () => {
                             <span className="text-[10px] text-slate-500">
                               {formatCurrency(currentUnitPrice)} / {item.product.unit}
                             </span>
-                            
+
                             <button
                               type="button"
                               onClick={() => startEditUnitPrice(item)}
@@ -673,13 +905,21 @@ export const PosTerminal = () => {
                 <span>-{formatCurrency(discountValue)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-black text-slate-900 border-t border-slate-200 pt-1.5 mt-1">
-              <span>Total Payable (المبلغ النهائي):</span>
-              <span className="text-emerald-600 text-base">{formatCurrency(totalAfterDiscount)}</span>
+            <div className={`flex justify-between text-sm font-bold border-t border-slate-200 pt-1.5 mt-1 ${
+              paymentMethod === 'debt' ? 'text-amber-800' : 'text-slate-900'
+            }`}>
+              <span>
+                {paymentMethod === 'debt'
+                  ? 'Total (DEBT — Notebook):'
+                  : 'Total Payable (المبلغ النهائي):'}
+              </span>
+              <span className={`text-base ${paymentMethod === 'debt' ? 'text-amber-600 font-black' : 'text-emerald-600 font-black'}`}>
+                {formatCurrency(totalAfterDiscount)}
+              </span>
             </div>
           </div>
 
-          {/* Pause Order & Checkout Action Bar */}
+          {/* Action Bar */}
           <div className="flex gap-2">
             <button
               type="button"
@@ -695,11 +935,29 @@ export const PosTerminal = () => {
             <button
               type="button"
               onClick={handleCheckout}
-              disabled={isSubmitting || cart.length === 0}
-              className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+              disabled={cart.length === 0 || isSubmitting || (paymentMethod === 'debt' && !selectedDebtCustomer)}
+              className={`flex-1 py-3 font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 ${
+                paymentMethod === 'debt'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
             >
-              <Printer className="w-4 h-4" />
-              <span>{isSubmitting ? 'Processing Sale...' : 'CONFIRM & PRINT RECEIPT'}</span>
+              {isSubmitting ? (
+                <span>Confirming Sale...</span>
+              ) : (
+                <>
+                  {paymentMethod === 'debt' ? (
+                    <BookOpen className="w-4 h-4" />
+                  ) : (
+                    <Printer className="w-4 h-4" />
+                  )}
+                  <span>
+                    {paymentMethod === 'debt'
+                      ? `CONFIRM DEBT SALE (${formatCurrency(totalAfterDiscount)})`
+                      : `CONFIRM & PRINT RECEIPT (${formatCurrency(totalAfterDiscount)})`}
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -714,6 +972,13 @@ export const PosTerminal = () => {
         }}
         onAuthorize={handleSupervisorAuthorized}
         itemName={cart.find((i) => i.product.id === pendingOverrideItem?.productId)?.product.name}
+      />
+
+      {/* Add Customer Modal */}
+      <AddCustomerModal
+        isOpen={addCustomerModal.isOpen}
+        onClose={addCustomerModal.close}
+        onCustomerCreated={handleCustomerCreated}
       />
 
       {/* Held Orders Registry Modal */}
