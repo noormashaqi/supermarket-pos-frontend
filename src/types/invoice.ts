@@ -32,6 +32,7 @@ export interface CreateInvoiceInput {
   items: Array<{
     productId: string;
     quantity: number;
+    unitPrice?: number;
   }>;
   paymentMethod?: 'cash' | 'debt';
   debtCustomerId?: string;

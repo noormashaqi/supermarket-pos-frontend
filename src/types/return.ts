@@ -8,7 +8,7 @@ export interface ReturnRecord {
   productId: string;
   productName: string;
   quantityReturned: number;
-  newInvoiceId?: string; // Set only for Exchange
+  newInvoiceId?: string;
   newInvoiceNumber?: string;
   employeeId: string;
   employeeName: string;
@@ -23,11 +23,21 @@ export interface ExecutePureReturnInput {
   reason?: string;
 }
 
+export interface ExchangeItemInput {
+  productId: string | number;
+  quantity: number;
+}
+
 export interface ExecuteExchangeInput {
   originalInvoiceId: string;
-  productIdToReturn: string;
+  // دعم كلا الحقلين للبديل القديم أو الجديد
+  productIdToReturn?: string | number;
+  oldProductId?: string | number;
+  productId?: string | number;
   quantityReturned: number;
-  replacementProductId: string;
-  replacementQuantity: number;
+  // دعم التبديل بصنف واحد أو أصناف متعددة
+  replacementProductId?: string | number;
+  replacementQuantity?: number;
+  newItems?: ExchangeItemInput[];
   reason?: string;
 }

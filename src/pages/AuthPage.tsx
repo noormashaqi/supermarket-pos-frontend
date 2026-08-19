@@ -33,7 +33,7 @@ export const AuthPage = () => {
         return;
       }
     } catch {
-      // Backend not running or demo fallback
+      // Fallback
     }
 
     // Fallback to local session login

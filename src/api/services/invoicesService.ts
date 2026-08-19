@@ -3,157 +3,165 @@ import type { Invoice, CreateInvoiceInput } from '../../types';
 import { productsService } from './productsService';
 import { debtService } from './debtService';
 
-let mockInvoices: Invoice[] = [
-  {
-    id: '1001',
-    invoiceNumber: 'INV-2026-001001',
-    employeeId: 'emp-1',
-    employeeName: 'Ahmad Al-Mansoor',
-    customerName: 'Walk-in Customer',
-    items: [
-      {
-        productId: '1',
-        productNameSnapshot: 'Fresh Whole Milk 1L',
-        unitPriceSnapshot: 2.50,
-        unit: 'piece',
-        quantity: 2,
-        lineTotal: 5.00,
-      },
-      {
-        productId: '4',
-        productNameSnapshot: 'Mineral Water Bottled Pack (12x500ml)',
-        unitPriceSnapshot: 4.50,
-        unit: 'package',
-        quantity: 1,
-        lineTotal: 4.50,
-      },
-    ],
-    totalBeforeDiscount: 9.50,
-    discountPercentage: 5,
-    totalAfterDiscount: 9.03,
-    hasReturn: false,
-    isFullyReturned: false,
-    createdAt: '2026-08-11T16:45:00Z',
-    paymentMethod: 'cash',
-  },
-  {
-    id: '1002',
-    invoiceNumber: 'INV-2026-001002',
-    employeeId: 'emp-2',
-    employeeName: 'Sara Cashier',
-    customerName: 'Tariq Al-Saleh',
-    items: [
-      {
-        productId: '3',
-        productNameSnapshot: 'Sliced Whole Wheat Toast Bread',
-        unitPriceSnapshot: 3.20,
-        unit: 'package',
-        quantity: 1,
-        lineTotal: 3.20,
-      },
-    ],
-    totalBeforeDiscount: 3.20,
-    discountPercentage: 0,
-    totalAfterDiscount: 3.20,
-    hasReturn: false,
-    isFullyReturned: false,
-    createdAt: '2026-08-11T17:10:00Z',
-    paymentMethod: 'cash',
-  },
-];
+const toTrimmedString = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : '';
+
+const toFiniteNumber = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 export const invoicesService = {
-  async getInvoices(): Promise<Invoice[]> {
+  async getInvoices(filters?: { date?: string; employeeId?: string; productId?: string }): Promise<Invoice[]> {
     try {
-      const data = await apiClient<any[]>('/api/invoices');
+      const params = new URLSearchParams();
+      if (filters?.date) params.append('date', filters.date);
+      if (filters?.employeeId) params.append('employeeId', filters.employeeId);
+      if (filters?.productId) params.append('productId', filters.productId);
+
+      const queryStr = params.toString();
+      const endpoint = `/api/Invoices${queryStr ? `?${queryStr}` : ''}`;
+
+      const data = await apiClient<any[]>(endpoint);
       if (Array.isArray(data)) {
         return data.map((inv) => ({
-          id: String(inv.id),
-          invoiceNumber: inv.invoiceNumber || `INV-2026-${inv.id}`,
-          employeeId: String(inv.employeeId || 'emp-1'),
-          employeeName: inv.employeeName || 'Cashier',
+          id: String(inv.id || inv.invoiceId),
+          invoiceNumber: inv.invoiceNumber || `INV-${inv.id || inv.invoiceId}`,
+          employeeId: String(inv.employeeId || '1'),
+          employeeName: inv.employeeName || 'Staff',
           customerName: inv.customerName || 'Walk-in Customer',
           items: Array.isArray(inv.items)
-            ? inv.items.map((i: any) => ({
-                productId: String(i.productId),
-                productNameSnapshot: i.productNameSnapshot || i.productName || 'Product',
-                unitPriceSnapshot: i.unitPriceSnapshot || i.unitPrice || 0,
-                unit: i.unit || 'piece',
-                quantity: i.quantity || 1,
-                lineTotal: i.lineTotal || (i.unitPrice * i.quantity),
+            ? inv.items.map((item: any) => ({
+                productId: String(item.productId),
+                productNameSnapshot: item.productNameSnapshot || item.productName || 'Product',
+                unitPriceSnapshot: item.unitPriceSnapshot || item.unitPrice || 0,
+                unit: (item.unit && item.unit.toLowerCase() === 'package') ? 'package' : 'piece',
+                quantity: item.quantity || 1,
+                lineTotal: item.lineTotal || (item.unitPrice ? item.unitPrice * (item.quantity || 1) : 0),
               }))
             : [],
-          totalBeforeDiscount: inv.totalBeforeDiscount || inv.subtotal || 0,
+          totalBeforeDiscount: inv.totalBeforeDiscount || 0,
           discountPercentage: inv.discountPercentage || 0,
-          totalAfterDiscount: inv.totalAfterDiscount || inv.totalAmount || 0,
+          totalAfterDiscount: inv.totalAfterDiscount || 0,
           hasReturn: Boolean(inv.hasReturn),
           isFullyReturned: Boolean(inv.isFullyReturned),
-          createdAt: inv.createdAt || new Date().toISOString(),
+          createdAt: inv.createdAt || inv.date || new Date().toISOString(),
           paymentMethod: inv.paymentMethod || 'cash',
           debtCustomerId: inv.debtCustomerId,
           debtCustomerNickname: inv.debtCustomerNickname,
           remainingDebtBalance: inv.remainingDebtBalance,
         }));
       }
-    } catch {
-      // fallback
+    } catch (err) {
+      console.error('Error fetching invoices:', err);
     }
-    return [...mockInvoices];
+    return [];
   },
 
   async getInvoiceById(id: string): Promise<Invoice | undefined> {
     try {
-      const inv = await apiClient<any>(`/api/invoices/${id}`);
-      if (inv && inv.id) {
+      const inv = await apiClient<any>(`/api/Invoices/${id}`);
+      if (inv && (inv.id || inv.invoiceId)) {
         return {
-          id: String(inv.id),
-          invoiceNumber: inv.invoiceNumber || `INV-2026-${inv.id}`,
-          employeeId: String(inv.employeeId || 'emp-1'),
-          employeeName: inv.employeeName || 'Cashier',
+          id: String(inv.id || inv.invoiceId),
+          invoiceNumber: inv.invoiceNumber || `INV-${inv.id || inv.invoiceId}`,
+          employeeId: String(inv.employeeId || '1'),
+          employeeName: inv.employeeName || 'Staff',
           customerName: inv.customerName || 'Walk-in Customer',
           items: Array.isArray(inv.items)
-            ? inv.items.map((i: any) => ({
-                productId: String(i.productId),
-                productNameSnapshot: i.productNameSnapshot || i.productName || 'Product',
-                unitPriceSnapshot: i.unitPriceSnapshot || i.unitPrice || 0,
-                unit: i.unit || 'piece',
-                quantity: i.quantity || 1,
-                lineTotal: i.lineTotal || (i.unitPrice * i.quantity),
+            ? inv.items.map((item: any) => ({
+                productId: String(item.productId),
+                productNameSnapshot: item.productNameSnapshot || item.productName || 'Product',
+                unitPriceSnapshot: item.unitPriceSnapshot || item.unitPrice || 0,
+                unit: (item.unit && item.unit.toLowerCase() === 'package') ? 'package' : 'piece',
+                quantity: item.quantity || 1,
+                lineTotal: item.lineTotal || (item.unitPrice ? item.unitPrice * (item.quantity || 1) : 0),
               }))
             : [],
-          totalBeforeDiscount: inv.totalBeforeDiscount || inv.subtotal || 0,
+          totalBeforeDiscount: inv.totalBeforeDiscount || 0,
           discountPercentage: inv.discountPercentage || 0,
-          totalAfterDiscount: inv.totalAfterDiscount || inv.totalAmount || 0,
+          totalAfterDiscount: inv.totalAfterDiscount || 0,
           hasReturn: Boolean(inv.hasReturn),
           isFullyReturned: Boolean(inv.isFullyReturned),
-          createdAt: inv.createdAt || new Date().toISOString(),
+          createdAt: inv.createdAt || inv.date || new Date().toISOString(),
           paymentMethod: inv.paymentMethod || 'cash',
           debtCustomerId: inv.debtCustomerId,
           debtCustomerNickname: inv.debtCustomerNickname,
           remainingDebtBalance: inv.remainingDebtBalance,
         };
       }
-    } catch {
-      // fallback
+    } catch (err) {
+      console.error('Error fetching invoice by ID:', err);
     }
-    return mockInvoices.find((i) => i.id === id || i.invoiceNumber === id);
+    return undefined;
   },
 
   async createInvoice(
     input: CreateInvoiceInput,
-    itemsDetail: Array<{ name: string; unit: 'piece' | 'package' }>,
-    employeeName: string = 'Active Cashier'
+    itemsDetail?: Array<{ name: string; unit: 'piece' | 'package' }>,
+    employeeName: string = 'Current Employee'
   ): Promise<Invoice> {
-    const prods = await productsService.getProducts();
+    const paymentMethod = input.paymentMethod || 'cash';
 
+    try {
+      const response = await apiClient<any>('/api/Invoices', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: input.items.map((i) => ({
+            productId: Number(i.productId) || i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice !== undefined ? Number(i.unitPrice) : undefined,
+          })),
+          discountPercentage: input.discountPercentage || 0,
+          customerName: input.customerName || 'Walk-in Customer',
+          employeeName,
+          paymentMethod,
+          debtCustomerId: input.debtCustomerId,
+        }),
+      });
+
+      const realId = response?.invoiceId || response?.id;
+      if (realId) {
+        const realInvoice = await this.getInvoiceById(String(realId));
+        if (realInvoice) {
+          return realInvoice;
+        }
+      }
+
+      if (response) {
+        return {
+          id: String(realId || Date.now()),
+          invoiceNumber: response?.invoiceNumber || `INV-${Date.now()}`,
+          employeeId: '1',
+          employeeName,
+          customerName: input.customerName || 'Walk-in Customer',
+          items: [],
+          totalBeforeDiscount: response?.totalBeforeDiscount || 0,
+          discountPercentage: input.discountPercentage || 0,
+          totalAfterDiscount: response?.totalAfterDiscount || 0,
+          hasReturn: false,
+          isFullyReturned: false,
+          createdAt: response?.createdAt || new Date().toISOString(),
+          paymentMethod,
+          debtCustomerId: input.debtCustomerId,
+          debtCustomerNickname: response?.debtCustomerNickname,
+          remainingDebtBalance: response?.remainingDebtBalance,
+        };
+      }
+    } catch (err) {
+      console.error('API createInvoice failed, falling back to local simulation:', err);
+    }
+
+    // Fallback simulation (offline / mock)
+    const prods = await productsService.getProducts();
     const items = input.items.map((item, idx) => {
-      const p = prods.find((x) => x.id === item.productId);
-      const unitPrice = p?.sellingPrice || 1.00;
+      const p = prods.find((x) => String(x.id) === String(item.productId));
+      const unitPrice = item.unitPrice ?? p?.sellingPrice ?? 1.0;
       return {
-        productId: item.productId,
-        productNameSnapshot: itemsDetail[idx]?.name || p?.name || 'Supermarket Item',
+        productId: String(item.productId),
+        productNameSnapshot: itemsDetail?.[idx]?.name || p?.name || 'Supermarket Item',
         unitPriceSnapshot: unitPrice,
-        unit: itemsDetail[idx]?.unit || p?.unit || 'piece',
+        unit: itemsDetail?.[idx]?.unit || p?.unit || 'piece',
         quantity: item.quantity,
         lineTotal: unitPrice * item.quantity,
       };
@@ -163,56 +171,8 @@ export const invoicesService = {
     const discountPercentage = Math.min(100, Math.max(0, input.discountPercentage || 0));
     const discountValue = totalBeforeDiscount * (discountPercentage / 100);
     const totalAfterDiscount = Number((totalBeforeDiscount - discountValue).toFixed(2));
-
-    try {
-      const response = await apiClient<any>('/api/invoices', {
-        method: 'POST',
-        body: JSON.stringify({
-          customerName: input.customerName || 'Walk-in Customer',
-          discountPercentage,
-          items: input.items.map((i) => ({
-            productId: Number(i.productId) || 1,
-            quantity: i.quantity,
-          })),
-        }),
-      });
-
-      if (response && response.id) {
-        return {
-          id: String(response.id),
-          invoiceNumber: response.invoiceNumber || `INV-2026-${response.id}`,
-          employeeId: 'emp-1',
-          employeeName,
-          customerName: input.customerName || 'Walk-in Customer',
-          items,
-          totalBeforeDiscount,
-          discountPercentage,
-          totalAfterDiscount,
-          hasReturn: false,
-          isFullyReturned: false,
-          createdAt: response.createdAt || new Date().toISOString(),
-          paymentMethod: input.paymentMethod || 'cash',
-          debtCustomerId: input.debtCustomerId,
-          debtCustomerNickname: response.debtCustomerNickname,
-          remainingDebtBalance: response.remainingDebtBalance,
-        };
-      }
-    } catch {
-      // fallback
-    }
-
-    // Auto deduct inventory stock upon invoice confirmation
-    for (const item of input.items) {
-      const p = prods.find((x) => x.id === item.productId);
-      if (p) {
-        p.quantity = Math.max(0, p.quantity - item.quantity);
-      }
-    }
-
-    const paymentMethod = input.paymentMethod || 'cash';
     const invoiceId = String(Date.now());
 
-    // If debt sale, update customer's outstanding balance
     let debtCustomerNickname: string | undefined;
     let remainingDebtBalance: number | undefined;
     if (paymentMethod === 'debt' && input.debtCustomerId) {
@@ -222,10 +182,10 @@ export const invoicesService = {
       remainingDebtBalance = customer?.totalOutstanding;
     }
 
-    const newInvoice: Invoice = {
+    return {
       id: invoiceId,
       invoiceNumber: `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`,
-      employeeId: 'emp-1',
+      employeeId: '1',
       employeeName,
       customerName: input.customerName || 'Walk-in Customer',
       items,
@@ -240,8 +200,102 @@ export const invoicesService = {
       debtCustomerNickname,
       remainingDebtBalance,
     };
+  },
 
-    mockInvoices.unshift(newInvoice);
-    return newInvoice;
+  async getPrintableInvoice(id: string) {
+    try {
+      const data = await apiClient<any>(`/api/Invoices/${id}/printable`);
+      if (data) {
+        const invoiceId = toFiniteNumber(data.invoiceId ?? data.id);
+        const invoiceNumber = toTrimmedString(data.invoiceNumber);
+        const employeeName = toTrimmedString(data.employeeName);
+        const date = toTrimmedString(data.date);
+        const paymentMethod = toTrimmedString(data.paymentMethod);
+        const totalBeforeDiscount = toFiniteNumber(data.totalBeforeDiscount);
+        const discountPercentage = toFiniteNumber(data.discountPercentage);
+        const discountAmount = toFiniteNumber(data.discountAmount);
+        const totalAfterDiscount = toFiniteNumber(data.totalAfterDiscount);
+        const items = Array.isArray(data.items)
+          ? data.items
+              .map((i: any) => {
+                const productId = toFiniteNumber(i.productId);
+                const productName = toTrimmedString(i.productName || i.productNameSnapshot);
+                const unitPrice = toFiniteNumber(i.unitPrice ?? i.unitPriceSnapshot);
+                const quantity = toFiniteNumber(i.quantity);
+                const lineTotal = toFiniteNumber(i.lineTotal);
+
+                if (
+                  productId === null ||
+                  !productName ||
+                  unitPrice === null ||
+                  quantity === null ||
+                  lineTotal === null
+                ) {
+                  return null;
+                }
+
+                return {
+                  productId,
+                  productName,
+                  unitPrice,
+                  quantity,
+                  lineTotal,
+                };
+              })
+              .filter(
+                (
+                  item: {
+                    productId: number;
+                    productName: string;
+                    unitPrice: number;
+                    quantity: number;
+                    lineTotal: number;
+                  } | null
+                ): item is {
+                  productId: number;
+                  productName: string;
+                  unitPrice: number;
+                  quantity: number;
+                  lineTotal: number;
+                } => item !== null
+              )
+          : [];
+        const htmlReceipt = typeof data.htmlReceipt === 'string' ? data.htmlReceipt : '';
+
+        if (
+          invoiceId === null ||
+          !invoiceNumber ||
+          !employeeName ||
+          !date ||
+          !paymentMethod ||
+          totalBeforeDiscount === null ||
+          discountPercentage === null ||
+          discountAmount === null ||
+          totalAfterDiscount === null ||
+          items.length === 0
+        ) {
+          console.error('Printable invoice response is incomplete:', data);
+          return null;
+        }
+
+        return {
+          invoiceId,
+          invoiceNumber,
+          employeeName,
+          date,
+          paymentMethod,
+          totalBeforeDiscount,
+          discountPercentage,
+          discountAmount,
+          totalAfterDiscount,
+          hasReturn: Boolean(data.hasReturn),
+          items,
+          htmlReceipt,
+        };
+      }
+    } catch (err) {
+      console.error('Error fetching printable invoice:', err);
+    }
+    return null;
   },
 };
