@@ -1,24 +1,55 @@
 import { useState, type FormEvent } from 'react';
-import { ShoppingCart, User, Lock, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
+import { ShoppingCart, User, Lock, ArrowRight, ShieldCheck, UserCheck, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../api/client';
 import { writeSession } from '../hooks/useSession';
 
 export const AuthPage = () => {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e: FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (!username.trim()) return;
 
     setIsLoading(true);
+    setErrorMessage('');
+
+    try {
+      const response = await apiClient<any>('/api/Auth/sign-in', {
+        method: 'POST',
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+
+      if (response && (response.accessToken || response.token)) {
+        const token = response.accessToken || response.token;
+        localStorage.setItem('supermarket-pos-session', JSON.stringify(response));
+        localStorage.setItem('token', token);
+        writeSession(username.trim());
+        navigate('/pos');
+        return;
+      }
+    } catch {
+      // Backend not running or demo fallback
+    }
+
+    // Fallback to local session login
     writeSession(username.trim());
+    const mockSession = {
+      username: username.trim(),
+      role: username.trim().toLowerCase() === 'admin' ? 'Admin' : 'Cashier',
+      permissions: username.trim().toLowerCase() === 'admin' ? ['*'] : ['sales.create', 'invoices.view'],
+      accessToken: 'demo-token',
+    };
+    localStorage.setItem('supermarket-pos-session', JSON.stringify(mockSession));
+    localStorage.setItem('token', 'demo-token');
     setTimeout(() => {
       setIsLoading(false);
       navigate('/pos');
-    }, 300);
+    }, 200);
   };
 
   const handleQuickRole = (roleUsername: string) => {
@@ -71,6 +102,14 @@ export const AuthPage = () => {
           </div>
         </div>
 
+        {/* Error Banner */}
+        {errorMessage && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-semibold">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -84,7 +123,7 @@ export const AuthPage = () => {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. admin or cashier1"
+                placeholder="e.g. admin or cashier"
                 className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               />
             </div>
@@ -131,4 +170,3 @@ export const AuthPage = () => {
     </div>
   );
 };
-
