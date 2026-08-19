@@ -49,7 +49,7 @@ export const productsService = {
           unit: (p.unit && p.unit.toLowerCase() === 'package' ? 'package' : 'piece') as ProductUnit,
           categoryId: String(p.categoryId || ''),
           categoryName: p.categoryName || 'General',
-          isActive: Boolean(p.isActive ?? true),
+          isActive: Boolean(p.isActive ?? p.IsActive ?? (p.isDeactivated !== undefined ? !p.isDeactivated : p.active ?? p.Active ?? true)),
           createdAt: p.createdAt || new Date().toISOString(),
           updatedAt: p.updatedAt || new Date().toISOString(),
         };
@@ -137,6 +137,27 @@ export const productsService = {
       { url: `/api/products/${id}/deactivate`, method: 'PATCH' },
       { url: `/api/Products/${id}`, method: 'DELETE' },
       { url: `/api/products/${id}`, method: 'DELETE' },
+    ];
+
+    for (const ep of endpointsToTry) {
+      try {
+        await apiClient<any>(ep.url, { method: ep.method });
+        return true;
+      } catch {
+        // try next
+      }
+    }
+    return false;
+  },
+
+  async activateProduct(id: string): Promise<boolean> {
+    const endpointsToTry = [
+      { url: `/api/Products/${id}/activate`, method: 'PUT' },
+      { url: `/api/products/${id}/activate`, method: 'PUT' },
+      { url: `/api/Products/${id}/activate`, method: 'PATCH' },
+      { url: `/api/products/${id}/activate`, method: 'PATCH' },
+      { url: `/api/Products/${id}/toggle-status`, method: 'PUT' },
+      { url: `/api/products/${id}/toggle-status`, method: 'PUT' },
     ];
 
     for (const ep of endpointsToTry) {

@@ -110,6 +110,20 @@ export const ProductsPage = () => {
     }
   };
 
+  const handleActivate = async (product: Product) => {
+    setIsLoading(true);
+    try {
+      const success = await productsService.activateProduct(product.id);
+      if (success) {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === product.id ? { ...p, isActive: true } : p))
+        );
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const lowStockCount = products.filter(
     (p) => p.isActive && p.quantity <= p.minStockLevel
   ).length;
@@ -203,12 +217,19 @@ export const ProductsPage = () => {
             Audit
           </button>
 
-          {p.isActive && (
+          {p.isActive ? (
             <button
               onClick={() => deactivateModal.open(p)}
               className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 cursor-pointer"
             >
               Deactivate
+            </button>
+          ) : (
+            <button
+              onClick={() => handleActivate(p)}
+              className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 cursor-pointer"
+            >
+              Activate
             </button>
           )}
         </div>

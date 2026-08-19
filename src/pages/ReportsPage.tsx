@@ -4,7 +4,6 @@ import {
   Calendar,
   Users,
   Package,
-  Printer,
   Filter,
 } from 'lucide-react';
 import {
@@ -237,14 +236,6 @@ export const ReportsPage = () => {
             Comprehensive business reports by date range, per-employee performance, and top sold product analytics.
           </p>
         </div>
-
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer print:hidden"
-        >
-          <Printer className="w-4 h-4" />
-          <span>Print Report</span>
-        </button>
       </div>
 
       {/* Summary Analytics Cards for Sales Mode */}
