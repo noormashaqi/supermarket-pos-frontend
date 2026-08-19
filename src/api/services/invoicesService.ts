@@ -104,6 +104,9 @@ export const invoicesService = {
     const paymentMethod = input.paymentMethod || 'cash';
 
     try {
+      const parsedDebtCustId = input.debtCustomerId ? (Number(input.debtCustomerId) || input.debtCustomerId) : undefined;
+      const formattedPaymentMethod = paymentMethod === 'debt' ? 'Debt' : 'Cash';
+
       const response = await apiClient<any>('/api/Invoices', {
         method: 'POST',
         body: JSON.stringify({
@@ -116,7 +119,11 @@ export const invoicesService = {
           customerName: input.customerName || 'Walk-in Customer',
           employeeName,
           paymentMethod,
-          debtCustomerId: input.debtCustomerId,
+          PaymentMethod: formattedPaymentMethod,
+          debtCustomerId: parsedDebtCustId,
+          DebtCustomerId: parsedDebtCustId,
+          customerId: parsedDebtCustId,
+          CustomerId: parsedDebtCustId,
         }),
       });
 
