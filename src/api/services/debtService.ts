@@ -72,33 +72,16 @@ export const debtService = {
   async createCustomer(input: CreateCustomerInput): Promise<DebtCustomer> {
     const payload = {
       fullName: input.nickname,
-      nickname: input.nickname,
       name: input.nickname,
+      nickname: input.nickname,
       phone: input.phone || '',
       phoneNumber: input.phone || '',
     };
 
-    let response: any = null;
-    const endpointsToTry = [
-      '/api/customers',
-      '/api/Customers',
-      '/api/debts/customers',
-      '/api/customer',
-    ];
-
-    for (const endpoint of endpointsToTry) {
-      try {
-        response = await apiClient<any>(endpoint, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        if (response && (response.id || response.customerId || response.nickname || response.fullName)) {
-          break;
-        }
-      } catch {
-        // try next endpoint
-      }
-    }
+    const response = await apiClient<any>('/api/customers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
 
     const realId = response?.id || response?.customerId || response?.Id;
     const assignedNickname = response?.nickname || response?.fullName || response?.name || input.nickname;
