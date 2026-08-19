@@ -75,39 +75,55 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased">
+    <div className="min-h-screen font-sans antialiased text-slate-800 bg-slate-50/60">
+      {/* Top Rainbow Accent Line */}
+      <div className="h-1 rainbow-bar sticky top-0 z-50"></div>
+
       {/* STREAMLINED HEADER */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs print:hidden">
+      <header className="bg-white/85 backdrop-blur-xl border-b border-slate-200/70 sticky top-1 z-40 shadow-lg shadow-indigo-500/5 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Brand Logo */}
+            {/* Brand Logo & Active Status Pill */}
             <div className="flex items-center gap-3 shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
-                <ShoppingCart className="w-5 h-5" />
+              <div className="relative">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-100">
+                  <ShoppingCart className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
               </div>
               <div>
-                <h1 className="font-extrabold text-slate-900 text-base tracking-tight leading-none">
-                  SUPERMARKET POS
+                <h1 className="font-black text-slate-900 text-base tracking-tight leading-none flex items-center gap-1.5">
+                  <span>SUPERMARKET</span>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">POS</span>
                 </h1>
-                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Inventory & POS Register</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Smart Register</p>
+                  <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    ONLINE
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Navigation Links */}
-            <nav className="flex space-x-1 overflow-x-auto bg-slate-100 p-1 rounded-xl scrollbar-none items-center">
+            <nav className="flex space-x-1 overflow-x-auto bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 scrollbar-none items-center shadow-inner">
               {session && canPOS && (
                 <NavLink
                   to="/pos"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>POS Checkout</span>
+                  <span>POS Register</span>
                 </NavLink>
               )}
 
@@ -115,15 +131,15 @@ function AppContent() {
                 <NavLink
                   to="/debts"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
                   <BookOpen className="w-3.5 h-3.5" />
-                  <span>Debt Notebook (الديون)</span>
+                  <span>Debt Notebook</span>
                 </NavLink>
               )}
 
@@ -131,10 +147,10 @@ function AppContent() {
                 <NavLink
                   to="/invoices"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
@@ -147,10 +163,10 @@ function AppContent() {
                 <NavLink
                   to="/products"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
@@ -163,10 +179,10 @@ function AppContent() {
                 <NavLink
                   to="/categories"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
@@ -179,10 +195,10 @@ function AppContent() {
                 <NavLink
                   to="/stock-history"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
@@ -195,10 +211,10 @@ function AppContent() {
                 <NavLink
                   to="/employees"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
@@ -211,10 +227,10 @@ function AppContent() {
                 <NavLink
                   to="/reports"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
@@ -227,10 +243,10 @@ function AppContent() {
                 <NavLink
                   to="/dashboard"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >
@@ -242,7 +258,7 @@ function AppContent() {
               {session ? (
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer ml-2 border border-transparent hover:border-rose-100 transition-all whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 cursor-pointer ml-2 transition-all whitespace-nowrap shadow-xs"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Logout (@{session.username})</span>
@@ -251,10 +267,10 @@ function AppContent() {
                 <NavLink
                   to="/login"
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    `flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                     }`
                   }
                 >

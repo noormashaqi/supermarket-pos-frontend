@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -33,18 +34,20 @@ export const Modal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-      <div className={`w-full ${maxWidthClasses[maxWidth]} bg-white rounded-2xl p-6 shadow-xl border border-slate-200 text-slate-800`}>
-        <div className="flex items-center justify-between border-b pb-3 border-slate-200">
-          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-md p-4 animate-slide-in">
+      <div
+        className={`w-full ${maxWidthClasses[maxWidth]} bg-white rounded-3xl p-6 shadow-2xl border border-slate-200/90 text-slate-800 space-y-4`}
+      >
+        <div className="flex items-center justify-between border-b pb-3.5 border-slate-100">
+          <h3 className="text-base font-black text-slate-900 tracking-tight">{title}</h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 font-bold text-xl cursor-pointer w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
+            className="text-slate-400 hover:text-slate-700 cursor-pointer w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all active:scale-95"
           >
-            &times;
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
-        <div className="mt-4">{children}</div>
+        <div>{children}</div>
       </div>
     </div>
   );

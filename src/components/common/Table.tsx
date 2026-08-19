@@ -11,6 +11,7 @@ export interface TableProps<T> {
   data: T[];
   keyExtractor: (item: T) => string | number;
   emptyMessage?: string;
+  onRowClick?: (item: T) => void;
 }
 
 export function Table<T>({
@@ -18,22 +19,23 @@ export function Table<T>({
   data,
   keyExtractor,
   emptyMessage = 'No data available',
+  onRowClick,
 }: TableProps<T>) {
   if (data.length === 0) {
     return (
-      <div className="py-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm font-medium text-sm">
+      <div className="py-12 text-center text-slate-500 bg-white rounded-3xl border border-slate-200/80 shadow-xs font-medium text-xs">
         {emptyMessage}
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <table className="w-full text-left text-xs text-slate-700">
-        <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
+    <div className="overflow-x-auto rounded-3xl border border-slate-200/80 bg-white shadow-xs">
+      <table className="w-full text-left text-xs text-slate-700 border-collapse">
+        <thead className="bg-slate-50/90 backdrop-blur-xs text-[10px] uppercase tracking-wider text-slate-500 font-extrabold border-b border-slate-200/80 sticky top-0 z-10">
           <tr>
             {columns.map((col, idx) => (
-              <th key={idx} className="px-6 py-3.5">
+              <th key={idx} className="px-5 py-3.5 whitespace-nowrap">
                 {col.header}
               </th>
             ))}
@@ -41,9 +43,15 @@ export function Table<T>({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {data.map((item) => (
-            <tr key={keyExtractor(item)} className="hover:bg-slate-50/80 transition-colors">
+            <tr
+              key={keyExtractor(item)}
+              onClick={() => onRowClick && onRowClick(item)}
+              className={`transition-all duration-150 ${
+                onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 active:bg-indigo-50/70' : 'hover:bg-slate-50/80'
+              }`}
+            >
               {columns.map((col, idx) => (
-                <td key={idx} className="px-6 py-4 font-medium">
+                <td key={idx} className="px-5 py-3.5 font-medium whitespace-nowrap">
                   {col.cell
                     ? col.cell(item)
                     : col.accessorKey
