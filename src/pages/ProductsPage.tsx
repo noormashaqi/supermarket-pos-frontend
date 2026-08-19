@@ -95,9 +95,13 @@ export const ProductsPage = () => {
 
   const handleDeactivate = async () => {
     if (!deactivateModal.data) return;
+    const targetId = deactivateModal.data.id;
     setIsLoading(true);
     try {
-      await productsService.deactivateProduct(deactivateModal.data.id);
+      await productsService.deactivateProduct(targetId);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === targetId ? { ...p, isActive: false } : p))
+      );
       await loadData();
       deactivateModal.close();
     } finally {

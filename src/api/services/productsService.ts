@@ -19,7 +19,7 @@ export const productsService = {
           unit: (p.unit && p.unit.toLowerCase() === 'package' ? 'package' : 'piece') as ProductUnit,
           categoryId: String(p.categoryId || ''),
           categoryName: p.categoryName || 'General',
-          isActive: Boolean(p.isActive ?? true),
+          isActive: Boolean(p.isActive ?? p.IsActive ?? (p.isDeactivated !== undefined ? !p.isDeactivated : p.active ?? p.Active ?? true)),
           createdAt: p.createdAt || new Date().toISOString(),
           updatedAt: p.updatedAt || new Date().toISOString(),
         }));
@@ -129,15 +129,24 @@ export const productsService = {
   },
 
   async deactivateProduct(id: string): Promise<boolean> {
-    try {
-      await apiClient<any>(`/api/Products/${id}`, {
-        method: 'DELETE',
-      });
-      return true;
-    } catch (err) {
-      console.error('Error deactivating product:', err);
-      return false;
+    const endpointsToTry = [
+      { url: `/api/Products/${id}/deactivate`, method: 'PUT' },
+      { url: `/api/products/${id}/deactivate`, method: 'PUT' },
+      { url: `/api/Products/${id}/deactivate`, method: 'PATCH' },
+      { url: `/api/products/${id}/deactivate`, method: 'PATCH' },
+      { url: `/api/Products/${id}`, method: 'DELETE' },
+      { url: `/api/products/${id}`, method: 'DELETE' },
+    ];
+
+    for (const ep of endpointsToTry) {
+      try {
+        await apiClient<any>(ep.url, { method: ep.method });
+        return true;
+      } catch {
+        // try next
+      }
     }
+    return false;
   },
 
   async addStock(input: AddStockInput, employeeName: string = 'Inventory Manager'): Promise<Product> {
