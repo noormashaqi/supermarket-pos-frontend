@@ -80,7 +80,9 @@ export const PosTerminal = () => {
 
   // Session & Permissions
   const { session } = useSession();
-  const canManageDebt = hasPermission('debt.manage', session.permissions) || hasPermission('admin', session.permissions) || session.role === 'admin' || session.role === 'Admin';
+  const canDebtSale =
+    hasPermission('invoices.debt_sale', session.permissions) ||
+    hasPermission('debt.manage', session.permissions);
 
   const canOverridePrice =
     hasPermission(PermissionKeys.InvoicesOverridePrice) ||
@@ -312,8 +314,8 @@ export const PosTerminal = () => {
   const totalAfterDiscount = Number((totalBeforeDiscount - discountValue).toFixed(2));
 
   const handlePaymentMethodChange = (method: 'cash' | 'debt') => {
-    if (method === 'debt' && !canManageDebt) {
-      addToast('error', '⛔ Access denied — "debt.manage" permission required. Login as admin.');
+    if (method === 'debt' && !canDebtSale) {
+      addToast('error', '⛔ Access denied — "invoices.debt_sale" permission required.');
       return;
     }
     setPaymentMethod(method);
@@ -600,17 +602,17 @@ export const PosTerminal = () => {
             <button
               type="button"
               onClick={() => handlePaymentMethodChange('debt')}
-              disabled={!canManageDebt}
-              title={!canManageDebt ? 'Requires debt.manage permission — login as admin' : 'Record as debt / notebook sale'}
+              disabled={!canDebtSale}
+              title={!canDebtSale ? 'Requires "invoices.debt_sale" permission' : 'Record as debt / notebook sale'}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                !canManageDebt
+                !canDebtSale
                   ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 opacity-60'
                   : paymentMethod === 'debt'
                   ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300 cursor-pointer'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 cursor-pointer'
               }`}
             >
-              {!canManageDebt ? (
+              {!canDebtSale ? (
                 <ShieldAlert className="w-4 h-4" />
               ) : (
                 <BookOpen className="w-4 h-4" />
@@ -619,10 +621,10 @@ export const PosTerminal = () => {
             </button>
           </div>
 
-          {!canManageDebt && (
+          {!canDebtSale && (
             <p className="text-[10px] text-amber-600 mt-1.5 flex items-center gap-1 font-medium">
               <ShieldAlert className="w-3 h-3" />
-              Debt sales require "debt.manage" permission. Login as admin to enable.
+              Debt sales require "invoices.debt_sale" permission claim.
             </p>
           )}
         </div>

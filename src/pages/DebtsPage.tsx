@@ -54,7 +54,10 @@ export const DebtsPage = () => {
 
   // Permissions & Session
   const { session } = useSession();
-  const canManageDebt = hasPermission('debt.manage', session.permissions);
+  const canManageDebt =
+    hasPermission('customers.record_payment', session.permissions) ||
+    hasPermission('invoices.debt_sale', session.permissions) ||
+    hasPermission('debt.manage', session.permissions);
 
   // Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -357,7 +360,7 @@ export const DebtsPage = () => {
           <div>
             <p className="font-bold">View Only Mode</p>
             <p className="text-[11px] text-amber-700">
-              Recording settlements or debt checkout requires administrator permissions (<code className="font-mono bg-amber-100 px-1 py-0.5 rounded">debt.manage</code>).
+              Recording settlements or debt checkout requires payment permissions (<code className="font-mono bg-amber-100 px-1 py-0.5 rounded">customers.record_payment</code> or <code className="font-mono bg-amber-100 px-1 py-0.5 rounded">invoices.debt_sale</code>).
             </p>
           </div>
         </div>

@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { ShoppingCart, User, Lock, ArrowRight, ShieldCheck, UserCheck, AlertCircle } from 'lucide-react';
+import { ShoppingCart, User, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { writeSession } from '../hooks/useSession';
 
 export const AuthPage = () => {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -52,10 +52,6 @@ export const AuthPage = () => {
     }, 200);
   };
 
-  const handleQuickRole = (roleUsername: string) => {
-    setUsername(roleUsername);
-  };
-
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl p-8 border border-slate-200 shadow-xl space-y-6">
@@ -68,39 +64,7 @@ export const AuthPage = () => {
           <p className="text-xs text-slate-500">Sign in to access cashier register & stock control</p>
         </div>
 
-        {/* Quick Role Selectors */}
-        <div className="space-y-1.5">
-          <label className="block text-[10px] font-bold uppercase text-slate-400 text-center">
-            Demo Quick Login Roles
-          </label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickRole('admin')}
-              className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                username.toLowerCase() === 'admin'
-                  ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-xs ring-1 ring-blue-400'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-              <span>Admin (All Access)</span>
-            </button>
 
-            <button
-              type="button"
-              onClick={() => handleQuickRole('cashier')}
-              className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                username.toLowerCase() === 'cashier'
-                  ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-xs ring-1 ring-blue-400'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5 text-slate-600" />
-              <span>Cashier</span>
-            </button>
-          </div>
-        </div>
 
         {/* Error Banner */}
         {errorMessage && (
