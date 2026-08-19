@@ -2,11 +2,12 @@ import { apiClient } from '../client';
 import type { Product, CreateProductInput, UpdateProductInput, AddStockInput, StockMovement, ProductUnit } from '../../types';
 
 export const productsService = {
-  async getProducts(categoryId?: string, activeOnly?: boolean): Promise<Product[]> {
+  async getProducts(categoryId?: string, activeOnly: boolean = false): Promise<Product[]> {
     try {
-      const endpoint = categoryId && categoryId !== 'all'
-        ? `/api/Products?categoryId=${categoryId}`
-        : '/api/Products';
+      const params = new URLSearchParams();
+      if (categoryId && categoryId !== 'all') params.append('categoryId', categoryId);
+      params.append('activeOnly', activeOnly ? 'true' : 'false');
+      const endpoint = `/api/Products?${params.toString()}`;
       const data = await apiClient<any[]>(endpoint);
       if (Array.isArray(data)) {
         let prods: Product[] = data.map((p) => ({

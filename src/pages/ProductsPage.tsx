@@ -34,7 +34,7 @@ export const ProductsPage = () => {
     setIsLoading(true);
     try {
       const [prods, cats] = await Promise.all([
-        productsService.getProducts(selectedCategory, activeTab !== 'discontinued'),
+        productsService.getProducts(selectedCategory, false),
         categoriesService.getCategories(),
       ]);
       setProducts(prods);
@@ -98,11 +98,12 @@ export const ProductsPage = () => {
     const targetId = deactivateModal.data.id;
     setIsLoading(true);
     try {
-      await productsService.deactivateProduct(targetId);
-      setProducts((prev) =>
-        prev.map((p) => (p.id === targetId ? { ...p, isActive: false } : p))
-      );
-      await loadData();
+      const success = await productsService.deactivateProduct(targetId);
+      if (success) {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === targetId ? { ...p, isActive: false } : p))
+        );
+      }
       deactivateModal.close();
     } finally {
       setIsLoading(false);
@@ -125,7 +126,7 @@ export const ProductsPage = () => {
     } else if (activeTab === 'discontinued') {
       matchesTab = !p.isActive;
     } else {
-      matchesTab = p.isActive;
+      matchesTab = true;
     }
 
     return matchesSearch && matchesCategory && matchesTab;
