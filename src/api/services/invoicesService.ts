@@ -110,6 +110,8 @@ export const invoicesService = {
       const response = await apiClient<any>('/api/Invoices', {
         method: 'POST',
         body: JSON.stringify({
+          employeeId: 1,
+          EmployeeId: 1,
           items: input.items.map((i) => ({
             productId: Number(i.productId) || i.productId,
             quantity: i.quantity,
