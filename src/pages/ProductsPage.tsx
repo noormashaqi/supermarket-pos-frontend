@@ -50,14 +50,30 @@ export const ProductsPage = () => {
 
   const handleProductSubmit = async (data: CreateProductInput | UpdateProductInput) => {
     setIsLoading(true);
+
+    const formattedPayload = {
+      name: data.name || '',
+      categoryId: Number(data.categoryId),
+      sellingPrice: Number(data.sellingPrice),
+      costPrice: Number(data.costPrice || 0),
+      initialQuantity: Number((data as CreateProductInput).initialQuantity ?? 0),
+      minStockLevel: Number(data.minStockLevel ?? 0),
+      unit: String(data.unit || 'piece').toLowerCase() === 'package' ? 'package' : 'piece',
+    };
+
     try {
       if (productFormModal.data) {
-        await productsService.updateProduct(productFormModal.data.id, data as UpdateProductInput, 'Admin');
+        await productsService.updateProduct(
+          productFormModal.data.id,
+          formattedPayload as unknown as UpdateProductInput
+        );
       } else {
-        await productsService.createProduct(data as CreateProductInput, 'Admin');
+        await productsService.createProduct(formattedPayload as unknown as CreateProductInput);
       }
       await loadData();
       productFormModal.close();
+    } catch (error) {
+      console.error("Failed to submit product:", error);
     } finally {
       setIsLoading(false);
     }
@@ -67,14 +83,11 @@ export const ProductsPage = () => {
     if (!addStockModal.data) return;
     setIsLoading(true);
     try {
-      await productsService.addStock(
-        {
-          productId: addStockModal.data.id,
-          quantityAdded,
-          reason,
-        },
-        'Ahmad (Admin)'
-      );
+      await productsService.addStock({
+        productId: addStockModal.data.id,
+        quantityAdded,
+        reason,
+      });
       await loadData();
       addStockModal.close();
     } finally {
@@ -239,7 +252,6 @@ export const ProductsPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Products Catalog & Stock Control</h1>
@@ -254,7 +266,6 @@ export const ProductsPage = () => {
         </button>
       </div>
 
-      {/* KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Active Products</p>
@@ -275,45 +286,39 @@ export const ProductsPage = () => {
         </div>
       </div>
 
-      {/* Tabs & Search Controls */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        {/* Navigation Tabs */}
         <div className="flex border-b border-slate-200 gap-4">
           <button
             onClick={() => setActiveTab('all')}
-            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'all'
+            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'all'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+              }`}
           >
             All Active Products ({totalActiveProducts})
           </button>
 
           <button
             onClick={() => setActiveTab('low_stock')}
-            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'low_stock'
+            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${activeTab === 'low_stock'
                 ? 'border-amber-600 text-amber-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+              }`}
           >
             ⚠️ Low Stock Warnings ({lowStockCount})
           </button>
 
           <button
             onClick={() => setActiveTab('discontinued')}
-            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'discontinued'
+            className={`pb-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${activeTab === 'discontinued'
                 ? 'border-rose-600 text-rose-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+              }`}
           >
             Deactivated Products
           </button>
         </div>
 
-        {/* Filter Inputs */}
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <input
@@ -344,7 +349,6 @@ export const ProductsPage = () => {
         </div>
       </div>
 
-      {/* Products Table */}
       <Table
         columns={columns}
         data={filteredProducts}
@@ -352,7 +356,6 @@ export const ProductsPage = () => {
         emptyMessage="No products matching the selected criteria."
       />
 
-      {/* Modals */}
       <ProductFormModal
         isOpen={productFormModal.isOpen}
         onClose={productFormModal.close}

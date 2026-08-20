@@ -11,7 +11,7 @@ import {
 import { Badge, Table, type Column } from '../components/common';
 import { dashboardService, type DashboardSummary } from '../api/services/dashboardService';
 import { productsService } from '../api/services/productsService';
-import { formatCurrency, getSession } from '../utils';
+import { formatCurrency } from '../utils';
 import { AddStockModal } from '../components/products/AddStockModal';
 import { useModal } from '../hooks';
 import type { Product } from '../types';
@@ -52,18 +52,13 @@ export const DashboardPage = () => {
   const handleAddStockSubmit = async (quantityAdded: number, reason: string) => {
     if (!addStockModal.data) return;
     setIsLoading(true);
-    const session = getSession();
-    const currentEmployeeName = session ? (session.fullName || session.username) : 'Admin';
     
     try {
-      await productsService.addStock(
-        {
-          productId: addStockModal.data.id,
-          quantityAdded,
-          reason,
-        },
-        currentEmployeeName
-      );
+      await productsService.addStock({
+        productId: addStockModal.data.id,
+        quantityAdded,
+        reason,
+      });
       await loadData();
       addStockModal.close();
     } catch (err) {

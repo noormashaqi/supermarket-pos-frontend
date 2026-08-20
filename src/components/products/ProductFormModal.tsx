@@ -31,13 +31,13 @@ export const ProductFormModal = ({
 
   useEffect(() => {
     if (product) {
-      setName(product.name);
-      setSellingPrice(String(product.sellingPrice));
+      setName(product.name || '');
+      setSellingPrice(String(product.sellingPrice || ''));
       setCostPrice(String(product.costPrice || ''));
-      setInitialQuantity(String(product.quantity));
-      setMinStockLevel(String(product.minStockLevel));
+      setInitialQuantity(String(product.quantity || '0'));
+      setMinStockLevel(String(product.minStockLevel || '10'));
       setUnit(product.unit || 'piece');
-      setCategoryId(product.categoryId);
+      setCategoryId(product.categoryId ? String(product.categoryId) : '');
     } else {
       setName('');
       setSellingPrice('');
@@ -45,13 +45,16 @@ export const ProductFormModal = ({
       setInitialQuantity('0');
       setMinStockLevel('10');
       setUnit('piece');
-      setCategoryId(categories[0]?.id || '');
+      setCategoryId(categories && categories.length > 0 ? String(categories[0].id) : '');
     }
   }, [product, categories, isOpen]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!name || !sellingPrice || !categoryId) return;
+    if (!name || !sellingPrice || !categoryId) {
+      console.warn('Form validation blocked submit:', { name, sellingPrice, categoryId });
+      return;
+    }
 
     if (isEditing) {
       const updateData: UpdateProductInput = {
