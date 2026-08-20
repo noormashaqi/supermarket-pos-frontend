@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tags, Plus, Search } from 'lucide-react';
 import { Modal, Table, type Column } from '../components/common';
 import { useModal } from '../hooks';
@@ -7,6 +8,7 @@ import type { Category, CreateCategoryInput } from '../types';
 import { formatDate } from '../utils';
 
 export const CategoriesPage = () => {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -120,6 +122,7 @@ export const CategoriesPage = () => {
         data={filteredCategories}
         keyExtractor={(cat) => cat.id}
         emptyMessage="No categories found."
+        onRowClick={(cat) => navigate(`/products?categoryId=${cat.id}`)}
       />
 
       {/* Add Category Modal */}

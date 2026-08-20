@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Badge, ConfirmDialog, Table, type Column } from '../components/common';
 import { ProductFormModal } from '../components/products/ProductFormModal';
 import { AddStockModal } from '../components/products/AddStockModal';
@@ -16,10 +17,20 @@ import type {
 import { formatCurrency, formatDate } from '../utils';
 
 export const ProductsPage = () => {
+  const [searchParams] = useSearchParams();
+  const urlCategoryId = searchParams.get('categoryId');
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(urlCategoryId || 'all');
+  
+  useEffect(() => {
+    if (urlCategoryId) {
+      setSelectedCategory(urlCategoryId);
+    }
+  }, [urlCategoryId]);
+
   const [activeTab, setActiveTab] = useState<'all' | 'low_stock' | 'discontinued'>('all');
   const [isLoading, setIsLoading] = useState(false);
 
